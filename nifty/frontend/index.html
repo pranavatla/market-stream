@@ -70,7 +70,8 @@
   .chartWrap{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:12px}
   .chartHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
   .chartTitle{font-family:var(--disp);font-weight:600;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
-  .chartBox{height:340px;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--bg)}
+  .chartBox{height:560px;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--bg)}
+  @media(max-width:760px){.chartBox{height:420px}}
 </style>
 </head>
 <body>
@@ -87,12 +88,10 @@
     </div>
   </header>
 
-  <div class="chartWrap" id="chartWrap" style="display:none;margin-bottom:14px">
+  <div class="chartWrap" id="chartWrap" style="display:block;margin-bottom:14px">
     <div class="chartHead">
-      <div class="chartTitle">Live NIFTY Chart</div>
-      <button id="chartToggle" style="padding:6px 10px;font-size:11px" onclick="toggleChart()">Hide</button>
+      <div class="chartTitle">Live NIFTY 50 Chart (Last 1D)</div>
     </div>
-    <div class="muted" id="chartNote" style="margin-bottom:10px"></div>
     <div class="chartBox" id="tvChart" style="display:block"></div>
   </div>
 
@@ -183,22 +182,6 @@ function _renderLive(){
   $('live').textContent = tok ? 'live: unlocked' : 'live: locked';
 }
 
-function showChart(){
-  $('chartWrap').style.display = 'block';
-  $('chartNote').textContent = isLoggedIn ? 'Chart loads from TradingView in your browser.' : 'Login to enable trading; chart can still be viewed.';
-  if(!chartLoaded){
-    loadTradingViewChart();
-    chartLoaded = true;
-  }
-}
-
-function toggleChart(){
-  const box = $('tvChart');
-  const on = box.style.display !== 'none';
-  box.style.display = on ? 'none' : 'block';
-  $('chartToggle').textContent = on ? 'Show' : 'Hide';
-}
-
 function loadTradingViewChart(){
   const container = $('tvChart');
   container.innerHTML = `
@@ -213,14 +196,15 @@ function loadTradingViewChart(){
   script.text = JSON.stringify({
     autosize: true,
     symbol: "NSE:NIFTY",
-    interval: "5",
+    interval: "1",
+    range: "1D",
     timezone: "Asia/Kolkata",
     theme: "dark",
     style: "1",
     locale: "en",
     hide_side_toolbar: true,
     allow_symbol_change: false,
-    withdateranges: false,
+    withdateranges: true,
     details: false,
     calendar: false,
     support_host: "https://www.tradingview.com"
@@ -269,7 +253,6 @@ async function boot(){
     _renderLive();
     $('loginBtn').textContent = h.logged_in ? 'Logged In' : 'Login';
     $('loginBtn').disabled = h.logged_in;
-    showChart();
   }catch(e){ log('⚠ '+e.message); }
   refreshRisk();
 }
@@ -289,7 +272,6 @@ async function login(){
     $('loginBtn').textContent = h.logged_in ? 'Logged In' : 'Login';
     $('loginBtn').disabled = h.logged_in;
     if(h.logged_in) log('Session established.');
-    showChart();
   }catch(e){
     $('loginBtn').textContent = 'Login';
     $('loginBtn').disabled = false;
@@ -369,6 +351,7 @@ async function squareoff(){
   await apiLive('/squareoff?execute=true',{method:'POST'}); log('Square-off sent.'); refreshRisk();
 }
 
+loadTradingViewChart();
 boot(); setInterval(refreshRisk, 5000);
 </script>
 </body>
