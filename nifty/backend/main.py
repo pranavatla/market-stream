@@ -13,6 +13,8 @@ import logging
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -25,12 +27,24 @@ import analysis
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="NIFTY Options Console")
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class NoStoreHTMLMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        # Avoid stale dashboards on browsers/proxies when we push updates.
+        if request.url.path in ("/", "/index.html"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+app.add_middleware(NoStoreHTMLMiddleware)
 
 def _require_trader(request: Request):
     """
