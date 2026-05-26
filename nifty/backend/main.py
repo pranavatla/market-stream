@@ -11,7 +11,7 @@ Safety endpoints: /kill, /unkill, /squareoff, /risk
 """
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -26,8 +26,22 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="NIFTY Options Console")
 
 app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+def _require_trader(request: Request):
+    """
+    Second factor for LIVE actions, on top of Nginx basic-auth.
+    Set `TRADER_TOKEN` in `.env` to enable. If unset, no extra check is applied.
+    """
+    if not settings.trader_token:
+        return
+    got = request.headers.get("X-Trader-Token", "")
+    if got != settings.trader_token:
+        raise HTTPException(401, "Missing/invalid X-Trader-Token")
 
 
 class OptionRef(BaseModel):
@@ -51,7 +65,8 @@ class AnalyzeReq(BaseModel):
 @app.get("/health")
 def health():
     return {"ok": True, "logged_in": angel.session is not None,
-            "confirm_mode": settings.confirm_mode}
+            "confirm_mode": settings.confirm_mode,
+            "trader_token_required": bool(settings.trader_token)}
 
 
 @app.post("/login")
@@ -87,7 +102,8 @@ def prepare(req: OrderReq):
 
 
 @app.post("/order/execute")
-def execute(req: OrderReq):
+def execute(req: OrderReq, request: Request):
+    _require_trader(request)
     res = orders.place_option(
         symbol=req.symbol, expiry=req.expiry, strike=req.strike,
         opt_type=req.opt_type, side=req.side, lots=req.lots,
@@ -107,7 +123,9 @@ def get_positions():
 
 
 @app.post("/squareoff")
-def squareoff(execute: bool = False):
+def squareoff(request: Request, execute: bool = False):
+    if execute:
+        _require_trader(request)
     return orders.square_off_all(dry_run=not execute)
 
 
@@ -122,13 +140,15 @@ def risk():
 
 
 @app.post("/kill")
-def kill():
+def kill(request: Request):
+    _require_trader(request)
     risk_engine.kill("manual kill from dashboard")
     return risk_engine.snapshot()
 
 
 @app.post("/unkill")
-def unkill():
+def unkill(request: Request):
+    _require_trader(request)
     risk_engine.reset_kill()
     return risk_engine.snapshot()
 

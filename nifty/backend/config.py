@@ -53,6 +53,8 @@ class Settings:
     risk: RiskLimits = field(default_factory=RiskLimits)
     anthropic_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+    # Optional: require a second secret for LIVE actions (execute/kill/squareoff).
+    trader_token: str = os.getenv("TRADER_TOKEN", "")
     # NIFTY lot size — verify against current exchange spec before trading
     nifty_lot_size: int = int(_f("NIFTY_LOT_SIZE", 75))
     confirm_mode: str = os.getenv("CONFIRM_MODE", "manual")  # manual | auto

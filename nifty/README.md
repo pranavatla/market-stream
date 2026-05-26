@@ -36,6 +36,8 @@ Fill `nifty/.env` (start from `nifty/.env.example`):
   - If your authenticator QR contains an `otpauth://...secret=XXXX...` URL, set `ANGEL_TOTP_SEED=XXXX` (not the 6‑digit code).
   - Tip: if you can copy the `otpauth://...` URL somewhere, you can extract the secret like this:
     - `python3 - <<'PY'\nfrom urllib.parse import urlparse, parse_qs\nu=input('otpauth url: ').strip()\nq=parse_qs(urlparse(u).query)\nprint(q.get('secret',[None])[0])\nPY`
+- `TRADER_TOKEN` (recommended)
+  - Optional second factor for LIVE actions (Execute/Kill/Square-off). If set, the UI will prompt for it once per browser session.
 - `ANTHROPIC_API_KEY` (optional)
   - Only needed for the read-only Claude advisory panel (`/analyze`). If unset, the app still trades; advisory will show an error.
 - `ANTHROPIC_MODEL` (optional)

@@ -76,6 +76,7 @@
     <div class="status">
       <div><span class="dot" id="conn"></span><span id="connTxt">disconnected</span></div>
       <div id="mode">mode: manual-confirm</div>
+      <div id="live">live: —</div>
     </div>
   </header>
 
@@ -149,10 +150,49 @@
 <script>
 const API = location.origin;           // backend serves this page
 let prepared = null;
+let traderTokenRequired = false;
 
 const $ = id => document.getElementById(id);
 function log(msg){ const l=$('log'); l.innerHTML = `<div><b>${new Date().toLocaleTimeString()}</b> ${msg}</div>` + l.innerHTML; }
-async function api(path, opts){ const r = await fetch(API+path, opts); if(!r.ok){ const t=await r.text(); throw new Error(t);} return r.json(); }
+function _getToken(){ return sessionStorage.getItem('trader_token') || ''; }
+function _setToken(tok){
+  if(tok) sessionStorage.setItem('trader_token', tok);
+  else sessionStorage.removeItem('trader_token');
+}
+function _renderLive(){
+  const tok = _getToken();
+  if(!traderTokenRequired){ $('live').textContent = tok ? 'live: token set' : 'live: open'; return; }
+  $('live').textContent = tok ? 'live: unlocked' : 'live: locked';
+}
+async function api(path, opts){
+  const o = opts ? {...opts} : {};
+  o.headers = {...(o.headers||{})};
+  const tok = _getToken();
+  if(tok) o.headers['X-Trader-Token'] = tok;
+  const r = await fetch(API+path, o);
+  if(!r.ok){
+    const t = await r.text();
+    throw new Error(t);
+  }
+  return r.json();
+}
+
+async function apiLive(path, opts){
+  try{
+    return await api(path, opts);
+  }catch(e){
+    const msg = (e && e.message) ? String(e.message) : '';
+    if(traderTokenRequired && msg.includes('X-Trader-Token')){
+      const tok = prompt('Trader token required for LIVE actions. Enter token:');
+      if(tok && tok.trim()){
+        _setToken(tok.trim());
+        _renderLive();
+        return await api(path, opts);
+      }
+    }
+    throw e;
+  }
+}
 
 function ref(opt){ return {symbol:$('symbol').value, expiry:$('expiry').value.toUpperCase(),
   strike:Number($('strike').value), opt_type:opt}; }
@@ -161,6 +201,8 @@ async function boot(){
   try{ const h=await api('/health'); $('conn').classList.toggle('on',h.logged_in);
     $('connTxt').textContent = h.logged_in?'connected':'not logged in';
     $('mode').textContent='mode: '+h.confirm_mode;
+    traderTokenRequired = !!h.trader_token_required;
+    _renderLive();
     if(!h.logged_in){ await api('/login',{method:'POST'}); $('conn').classList.add('on'); $('connTxt').textContent='connected'; log('Session established.'); }
   }catch(e){ log('⚠ '+e.message); }
   refreshRisk();
@@ -199,7 +241,7 @@ async function prepare(){
 async function execOrder(){
   if(!confirm('Send LIVE order to Angel One?')) return;
   try{
-    const r=await api('/order/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(prepared)});
+    const r=await apiLive('/order/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(prepared)});
     log(`✅ ORDER SENT — id ${r.order_id}`); $('confirmPanel').style.display='none'; refreshRisk();
   }catch(e){ log('⚠ EXEC FAILED: '+e.message); }
 }
@@ -232,10 +274,10 @@ async function refreshRisk(){
   }catch(e){}
 }
 
-async function kill(){ await api('/kill',{method:'POST'}); log('🛑 KILL engaged.'); refreshRisk(); }
+async function kill(){ await apiLive('/kill',{method:'POST'}); log('🛑 KILL engaged.'); refreshRisk(); }
 async function squareoff(){
   if(!confirm('Square off ALL open positions now?')) return;
-  await api('/squareoff?execute=true',{method:'POST'}); log('Square-off sent.'); refreshRisk();
+  await apiLive('/squareoff?execute=true',{method:'POST'}); log('Square-off sent.'); refreshRisk();
 }
 
 boot(); setInterval(refreshRisk, 5000);
