@@ -25,6 +25,7 @@ from angel_client import angel
 from risk import risk_engine
 import orders
 import analysis
+import market
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="NIFTY Options Console")
@@ -125,6 +126,45 @@ def quote(ref: OptionRef):
 @app.post("/analyze")
 def analyze(req: AnalyzeReq):
     return analysis.review_setup(req.context)
+
+class AutoAdviceReq(BaseModel):
+    symbol: str = "NIFTY"
+    expiry: str
+    strike: int
+    opt_type: str  # CE | PE
+    thesis: str = ""
+
+
+@app.post("/advisory/auto")
+def advisory_auto(req: AutoAdviceReq):
+    """
+    Advisory powered by real market data:
+    - NIFTY spot snapshot (1m candles + indicators)
+    - option LTP for chosen strike
+    This still does NOT place orders.
+    """
+    if angel.session is None:
+        raise HTTPException(400, "Not logged in. Click Login first.")
+
+    snap = market.nifty_spot_snapshot()
+    opt = market.option_snapshot(
+        symbol=req.symbol, expiry=req.expiry, strike=req.strike, opt_type=req.opt_type
+    )
+    ctx = {
+        "thesis": req.thesis,
+        "spot": snap["spot"],
+        "range_24h": snap["range_24h"],
+        "indicators": snap["indicators"],
+        "candidate": f"{req.strike}{req.opt_type.upper()} {req.expiry}",
+        "option_ltp": opt["ltp"],
+        "rules": [
+            "buy options only",
+            "do not enter outside entry window",
+            "respect max loss per trade/day",
+            "prefer waiting if chart state is unclear",
+        ],
+    }
+    return analysis.review_setup(ctx)
 
 
 @app.post("/order/prepare")

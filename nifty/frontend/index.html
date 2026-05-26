@@ -129,8 +129,6 @@
       <h2>Claude Advisory <span style="color:var(--dim)">second opinion</span></h2>
       <label>Your thesis (one line)</label>
       <input id="thesis" placeholder="breakout above 24550 on volume">
-      <label>Spot / IV</label>
-      <div class="row"><input id="spot" type="number" placeholder="spot"><input id="iv" type="number" placeholder="IV %"></div>
       <button style="width:100%;margin-top:12px" onclick="analyze()">Run Advisory</button>
       <div id="advBox"></div>
       <p class="muted">Advisory is a risk review, not a buy signal. The decision is yours.</p>
@@ -320,12 +318,17 @@ async function execOrder(){
 }
 
 async function analyze(){
-  const ctx={spot:Number($('spot').value), iv:Number($('iv').value),
-    candidate:`${$('strike').value}`, thesis:$('thesis').value,
-    rules:["trade 09:30-14:30 only","skip if IV > 20","max 1% capital risk","buy options only"]};
   $('advBox').innerHTML='<p class="muted">thinking…</p>';
   try{
-    const a=await api('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context:ctx})});
+    // Auto-advisory: uses live candle + quote data from SmartAPI (requires Login).
+    const req = {
+      symbol: $('symbol').value || 'NIFTY',
+      expiry: $('expiry').value.toUpperCase(),
+      strike: Number($('strike').value),
+      opt_type: (prepared && prepared.opt_type) ? prepared.opt_type : 'CE',
+      thesis: $('thesis').value || ''
+    };
+    const a=await api('/advisory/auto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(req)});
     if(a.error){ $('advBox').innerHTML=`<p class="muted">⚠ ${a.error}</p>`; return; }
     const v=(a.verdict||'wait');
     $('advBox').innerHTML=`<div class="verdict ${v}">

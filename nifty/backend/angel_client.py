@@ -112,5 +112,49 @@ class AngelClient:
         r = self.smart.ltpData(exchange, tradingsymbol, token)
         return float(r["data"]["ltp"])
 
+    def candles(
+        self,
+        *,
+        exchange: str,
+        token: str,
+        interval: str,
+        fromdate: str,
+        todate: str,
+    ) -> list[list]:
+        """
+        Historical candle data wrapper.
+        interval examples: ONE_MINUTE, FIVE_MINUTE, ONE_HOUR, ONE_DAY
+        fromdate/todate format: "YYYY-MM-DD HH:MM"
+        """
+        self.require_session()
+        params = {
+            "exchange": exchange,
+            "symboltoken": str(token),
+            "interval": interval,
+            "fromdate": fromdate,
+            "todate": todate,
+        }
+        resp = self.smart.getCandleData(params)
+        if not isinstance(resp, dict) or not resp.get("status"):
+            raise RuntimeError(f"Candle API failed: {resp}")
+        return resp.get("data") or []
+
+    def resolve_nifty_index(self) -> dict:
+        """
+        Resolve NIFTY 50 spot index instrument for NSE quotes/candles.
+        Uses the scrip master entry:
+          symbol='Nifty 50', name='NIFTY', instrumenttype='AMXIDX'
+        """
+        self._ensure_instruments()
+        for ins in self._instruments:
+            if (
+                ins.get("exch_seg") == "NSE"
+                and ins.get("instrumenttype") == "AMXIDX"
+                and ins.get("name") == "NIFTY"
+                and ins.get("symbol") == "Nifty 50"
+            ):
+                return {"token": ins["token"], "tradingsymbol": ins["symbol"]}
+        raise LookupError("Could not resolve NIFTY 50 index instrument from scrip master.")
+
 
 angel = AngelClient()
