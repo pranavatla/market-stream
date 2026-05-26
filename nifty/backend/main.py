@@ -70,8 +70,9 @@ def health():
 
 
 @app.post("/login")
-def login():
+def login(request: Request):
     try:
+        _require_trader(request)
         return angel.login()
     except Exception as e:
         raise HTTPException(400, str(e))

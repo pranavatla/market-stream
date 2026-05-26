@@ -77,6 +77,9 @@
       <div><span class="dot" id="conn"></span><span id="connTxt">disconnected</span></div>
       <div id="mode">mode: manual-confirm</div>
       <div id="live">live: —</div>
+      <div style="margin-top:6px">
+        <button id="loginBtn" onclick="login()" style="padding:6px 10px;font-size:11px">Login</button>
+      </div>
     </div>
   </header>
 
@@ -203,9 +206,31 @@ async function boot(){
     $('mode').textContent='mode: '+h.confirm_mode;
     traderTokenRequired = !!h.trader_token_required;
     _renderLive();
-    if(!h.logged_in){ await api('/login',{method:'POST'}); $('conn').classList.add('on'); $('connTxt').textContent='connected'; log('Session established.'); }
+    $('loginBtn').textContent = h.logged_in ? 'Logged In' : 'Login';
+    $('loginBtn').disabled = h.logged_in;
   }catch(e){ log('⚠ '+e.message); }
   refreshRisk();
+}
+
+async function login(){
+  try{
+    $('loginBtn').textContent = 'Logging in...';
+    $('loginBtn').disabled = true;
+    await apiLive('/login',{method:'POST'});
+    const h=await api('/health');
+    $('conn').classList.toggle('on',h.logged_in);
+    $('connTxt').textContent = h.logged_in?'connected':'not logged in';
+    $('mode').textContent='mode: '+h.confirm_mode;
+    traderTokenRequired = !!h.trader_token_required;
+    _renderLive();
+    $('loginBtn').textContent = h.logged_in ? 'Logged In' : 'Login';
+    $('loginBtn').disabled = h.logged_in;
+    if(h.logged_in) log('Session established.');
+  }catch(e){
+    $('loginBtn').textContent = 'Login';
+    $('loginBtn').disabled = false;
+    log('⚠ LOGIN FAILED: '+e.message);
+  }
 }
 
 async function quote(opt){
