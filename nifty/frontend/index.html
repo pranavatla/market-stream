@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NIFTY Options Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e0d; --panel:#111715; --line:#1f2c28; --line2:#2c3d37;
+    --txt:#d8e6df; --dim:#6f8279; --amber:#f5b942; --green:#2fd27a;
+    --red:#ff5a52; --blue:#5aa9ff; --ink:#05201a;
+    --mono:'JetBrains Mono',monospace; --disp:'Bricolage Grotesque',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13px;
+    background-image:radial-gradient(circle at 20% -10%,rgba(47,210,122,.06),transparent 40%),
+                     radial-gradient(circle at 100% 0,rgba(245,185,66,.05),transparent 35%);
+    min-height:100vh;padding:18px}
+  .wrap{max-width:1080px;margin:0 auto}
+  header{display:flex;align-items:baseline;justify-content:space-between;
+    border-bottom:1px solid var(--line2);padding-bottom:12px;margin-bottom:16px}
+  h1{font-family:var(--disp);font-weight:800;font-size:26px;letter-spacing:-.02em}
+  h1 span{color:var(--green)}
+  .status{font-size:11px;color:var(--dim);text-align:right;line-height:1.6}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:5px}
+  .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .panel h2{font-family:var(--disp);font-weight:600;font-size:13px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--dim);margin-bottom:12px;display:flex;justify-content:space-between}
+  label{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:8px 0 3px}
+  input,select{width:100%;background:var(--bg);border:1px solid var(--line2);color:var(--txt);
+    font-family:var(--mono);font-size:13px;padding:8px 10px;border-radius:6px}
+  input:focus,select:focus{outline:none;border-color:var(--green)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  button{font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.05em;
+    border:1px solid var(--line2);background:var(--bg);color:var(--txt);padding:10px;
+    border-radius:6px;cursor:pointer;transition:.12s;text-transform:uppercase}
+  button:hover{border-color:var(--green);color:var(--green)}
+  button.ce{border-color:#1f4d3a}  button.ce:hover{background:var(--green);color:var(--ink);border-color:var(--green)}
+  button.pe{border-color:#4d2020} button.pe:hover{background:var(--red);color:#fff;border-color:var(--red)}
+  button.exec{background:var(--amber);color:var(--ink);border-color:var(--amber);width:100%;margin-top:10px}
+  button.exec:hover{filter:brightness(1.1);color:var(--ink)}
+  button.kill{background:var(--red);color:#fff;border-color:var(--red);width:100%}
+  button.kill:hover{filter:brightness(1.1);color:#fff}
+  .quote{font-family:var(--disp);font-weight:800;font-size:34px;letter-spacing:-.02em;margin:6px 0}
+  .quote small{font-size:13px;color:var(--dim);font-weight:600}
+  .kv{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--line);font-size:12px}
+  .kv:last-child{border:0} .kv b{color:var(--txt)} .kv .v{color:var(--green)}
+  .kv .v.neg{color:var(--red)}
+  .verdict{margin-top:10px;padding:10px;border-radius:6px;border:1px solid var(--line2);font-size:12px}
+  .verdict.consider{border-color:var(--green);background:rgba(47,210,122,.07)}
+  .verdict.wait{border-color:var(--amber);background:rgba(245,185,66,.07)}
+  .verdict.skip{border-color:var(--red);background:rgba(255,90,82,.07)}
+  .tag{font-family:var(--disp);font-weight:800;text-transform:uppercase;font-size:14px;letter-spacing:.05em}
+  ul{list-style:none;margin-top:6px} li{padding:2px 0 2px 14px;position:relative;color:var(--dim);font-size:11px}
+  li:before{content:'›';position:absolute;left:0;color:var(--green)}
+  li.bad:before{content:'×';color:var(--red)}
+  .log{font-size:11px;color:var(--dim);max-height:120px;overflow:auto;line-height:1.7}
+  .log b{color:var(--amber)}
+  .banner{background:rgba(255,90,82,.12);border:1px solid var(--red);color:var(--red);
+    padding:8px 12px;border-radius:6px;font-size:11px;margin-bottom:14px;display:none}
+  .banner.show{display:block}
+  .muted{color:var(--dim);font-size:11px;line-height:1.6;margin-top:8px}
+  .full{grid-column:1/-1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>NIFTY<span>·</span>OPTIONS CONSOLE</h1>
+    <div class="status">
+      <div><span class="dot" id="conn"></span><span id="connTxt">disconnected</span></div>
+      <div id="mode">mode: manual-confirm</div>
+    </div>
+  </header>
+
+  <div class="banner" id="killBanner">⚠ KILL SWITCH ACTIVE — <span id="killReason"></span></div>
+
+  <div class="grid">
+    <!-- LEFT: order ticket -->
+    <div class="panel">
+      <h2>Order Ticket</h2>
+      <div class="row">
+        <div><label>Symbol</label><input id="symbol" value="NIFTY"></div>
+        <div><label>Expiry (e.g. 29MAY2025)</label><input id="expiry" placeholder="29MAY2025"></div>
+      </div>
+      <div class="row">
+        <div><label>Strike</label><input id="strike" type="number" placeholder="24500"></div>
+        <div><label>Lots</label><input id="lots" type="number" value="1" min="1"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="ce" onclick="quote('CE')">Quote CE</button>
+        <button class="pe" onclick="quote('PE')">Quote PE</button>
+      </div>
+
+      <div id="quoteBox" style="margin-top:14px;display:none">
+        <div class="quote" id="ltp">—<small id="qsym"></small></div>
+        <div class="kv"><b>Lot size</b><span class="v" id="lotsize">—</span></div>
+        <div class="kv"><b>Qty</b><span class="v" id="qty">—</span></div>
+        <div class="kv"><b>Premium outlay (max loss)</b><span class="v neg" id="outlay">—</span></div>
+        <button class="exec" id="prepBtn" onclick="prepare()">Prepare Order ▸</button>
+      </div>
+    </div>
+
+    <!-- RIGHT: advisory -->
+    <div class="panel">
+      <h2>Claude Advisory <span style="color:var(--dim)">second opinion</span></h2>
+      <label>Your thesis (one line)</label>
+      <input id="thesis" placeholder="breakout above 24550 on volume">
+      <label>Spot / IV</label>
+      <div class="row"><input id="spot" type="number" placeholder="spot"><input id="iv" type="number" placeholder="IV %"></div>
+      <button style="width:100%;margin-top:12px" onclick="analyze()">Run Advisory</button>
+      <div id="advBox"></div>
+      <p class="muted">Advisory is a risk review, not a buy signal. The decision is yours.</p>
+    </div>
+
+    <!-- prepared order confirm -->
+    <div class="panel full" id="confirmPanel" style="display:none">
+      <h2>Confirm & Execute</h2>
+      <div id="confirmBody"></div>
+    </div>
+
+    <!-- risk -->
+    <div class="panel">
+      <h2>Risk Engine</h2>
+      <div class="kv"><b>Realised P&L (day)</b><span class="v" id="rpnl">—</span></div>
+      <div class="kv"><b>Open positions</b><span class="v" id="openpos">—</span></div>
+      <div class="kv"><b>Orders today</b><span class="v" id="ordct">—</span></div>
+      <div class="kv"><b>Window</b><span class="v" id="window" style="color:var(--dim)">—</span></div>
+      <div class="row" style="margin-top:12px">
+        <button onclick="squareoff()">Square Off All</button>
+        <button class="kill" onclick="kill()">KILL</button>
+      </div>
+    </div>
+
+    <!-- log -->
+    <div class="panel">
+      <h2>Activity</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = location.origin;           // backend serves this page
+let prepared = null;
+
+const $ = id => document.getElementById(id);
+function log(msg){ const l=$('log'); l.innerHTML = `<div><b>${new Date().toLocaleTimeString()}</b> ${msg}</div>` + l.innerHTML; }
+async function api(path, opts){ const r = await fetch(API+path, opts); if(!r.ok){ const t=await r.text(); throw new Error(t);} return r.json(); }
+
+function ref(opt){ return {symbol:$('symbol').value, expiry:$('expiry').value.toUpperCase(),
+  strike:Number($('strike').value), opt_type:opt}; }
+
+async function boot(){
+  try{ const h=await api('/health'); $('conn').classList.toggle('on',h.logged_in);
+    $('connTxt').textContent = h.logged_in?'connected':'not logged in';
+    $('mode').textContent='mode: '+h.confirm_mode;
+    if(!h.logged_in){ await api('/login',{method:'POST'}); $('conn').classList.add('on'); $('connTxt').textContent='connected'; log('Session established.'); }
+  }catch(e){ log('⚠ '+e.message); }
+  refreshRisk();
+}
+
+async function quote(opt){
+  try{
+    const q = await api('/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ref(opt))});
+    $('quoteBox').style.display='block';
+    $('ltp').firstChild.textContent = '₹'+q.ltp.toFixed(2)+' ';
+    $('qsym').textContent = q.instrument.tradingsymbol;
+    const qty = Number($('lots').value)*q.instrument.lotsize;
+    $('lotsize').textContent=q.instrument.lotsize; $('qty').textContent=qty;
+    $('outlay').textContent='₹'+(q.ltp*qty).toFixed(0);
+    prepared={...ref(opt), side:'BUY', lots:Number($('lots').value), order_type:'MARKET'};
+    log(`Quoted ${q.instrument.tradingsymbol} @ ₹${q.ltp.toFixed(2)}`);
+  }catch(e){ log('⚠ '+e.message); }
+}
+
+async function prepare(){
+  if(!prepared){ return; }
+  try{
+    const p = await api('/order/prepare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(prepared)});
+    const cp=$('confirmPanel'), cb=$('confirmBody'); cp.style.display='block';
+    if(!p.ok){ cb.innerHTML=`<div class="verdict skip"><span class="tag">Blocked</span> — ${p.reason||p.error}</div>`; log('Order blocked: '+(p.reason||p.error)); return; }
+    cb.innerHTML = `
+      <div class="kv"><b>${prepared.opt_type} ${prepared.strike} ${prepared.expiry}</b><span class="v">${p.order.transactiontype}</span></div>
+      <div class="kv"><b>LTP</b><span class="v">₹${p.ltp.toFixed(2)}</span></div>
+      <div class="kv"><b>Qty (${prepared.lots} lot)</b><span class="v">${p.qty}</span></div>
+      <div class="kv"><b>Max loss (premium)</b><span class="v neg">₹${p.est_max_loss.toFixed(0)}</span></div>
+      <button class="exec" onclick="execOrder()">⚠ Execute Live Order</button>`;
+    log('Order prepared (dry-run) — awaiting confirm.');
+  }catch(e){ log('⚠ '+e.message); }
+}
+
+async function execOrder(){
+  if(!confirm('Send LIVE order to Angel One?')) return;
+  try{
+    const r=await api('/order/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(prepared)});
+    log(`✅ ORDER SENT — id ${r.order_id}`); $('confirmPanel').style.display='none'; refreshRisk();
+  }catch(e){ log('⚠ EXEC FAILED: '+e.message); }
+}
+
+async function analyze(){
+  const ctx={spot:Number($('spot').value), iv:Number($('iv').value),
+    candidate:`${$('strike').value}`, thesis:$('thesis').value,
+    rules:["trade 09:30-14:30 only","skip if IV > 20","max 1% capital risk","buy options only"]};
+  $('advBox').innerHTML='<p class="muted">thinking…</p>';
+  try{
+    const a=await api('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context:ctx})});
+    if(a.error){ $('advBox').innerHTML=`<p class="muted">⚠ ${a.error}</p>`; return; }
+    const v=(a.verdict||'wait');
+    $('advBox').innerHTML=`<div class="verdict ${v}">
+      <span class="tag">${v}</span> — ${a.one_liner||''}
+      <ul>${(a.supports||[]).map(s=>`<li>${s}</li>`).join('')}${(a.against||[]).map(s=>`<li class="bad">${s}</li>`).join('')}</ul>
+      <p class="muted">${a.theta_iv_note||''}</p></div>`;
+  }catch(e){ $('advBox').innerHTML=`<p class="muted">⚠ ${e.message}</p>`; }
+}
+
+async function refreshRisk(){
+  try{
+    const r=await api('/risk');
+    $('rpnl').textContent='₹'+r.realised_pnl.toFixed(0);
+    $('rpnl').className='v'+(r.realised_pnl<0?' neg':'');
+    $('openpos').textContent=r.open_positions; $('ordct').textContent=r.orders_today;
+    $('window').textContent=r.limits.window;
+    $('killBanner').classList.toggle('show',r.killed);
+    if(r.killed) $('killReason').textContent=r.kill_reason;
+  }catch(e){}
+}
+
+async function kill(){ await api('/kill',{method:'POST'}); log('🛑 KILL engaged.'); refreshRisk(); }
+async function squareoff(){
+  if(!confirm('Square off ALL open positions now?')) return;
+  await api('/squareoff?execute=true',{method:'POST'}); log('Square-off sent.'); refreshRisk();
+}
+
+boot(); setInterval(refreshRisk, 5000);
+</script>
+</body>
+</html>
