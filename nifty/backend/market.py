@@ -185,6 +185,15 @@ def nifty_spot_snapshot() -> dict:
         "instrument": idx,
         "spot": last,
         "range_24h": {"high": hi, "low": lo, "change": chg, "change_pct": chg_pct},
+        "momentum": {
+            "m5": _momentum(closes, 5),
+            "m15": _momentum(closes, 15),
+        },
+        "spot_levels": {
+            "vs_vwap": (last - vwap1d) if vwap1d is not None else None,
+            "vs_ema9": (last - ema9) if ema9 is not None else None,
+            "vs_ema21": (last - ema21) if ema21 is not None else None,
+        },
         "indicators": {
             "ema9": ema9,
             "ema21": ema21,
@@ -204,3 +213,68 @@ def option_snapshot(*, symbol: str, expiry: str, strike: int, opt_type: str) -> 
     ltp = angel.ltp("NFO", inst["tradingsymbol"], inst["token"])
     return {"instrument": inst, "ltp": ltp}
 
+
+def option_pair_snapshot(*, symbol: str, expiry: str, strike: int) -> dict:
+    """
+    Returns both CE and PE snapshots for a given strike/expiry, plus simple spread.
+    """
+    ce = option_snapshot(symbol=symbol, expiry=expiry, strike=strike, opt_type="CE")
+    pe = option_snapshot(symbol=symbol, expiry=expiry, strike=strike, opt_type="PE")
+    return {
+        "ce": ce,
+        "pe": pe,
+        "premium_spread": float(ce["ltp"]) - float(pe["ltp"]),
+    }
+
+
+def _momentum(closes: list[float], minutes: int) -> dict:
+    if len(closes) < minutes + 1:
+        return {"delta": None, "delta_pct": None}
+    now = closes[-1]
+    prev = closes[-(minutes + 1)]
+    d = now - prev
+    pct = (d / prev * 100.0) if prev else 0.0
+    return {"delta": float(d), "delta_pct": float(pct)}
+
+
+_CANDLE_CACHE: dict = {"at": None, "data": None}
+
+
+def nifty_candles_1m(hours: int = 24) -> dict:
+    """
+    Returns last `hours` of 1m candles for NIFTY 50 spot with a small cache
+    to avoid hammering historical API.
+    """
+    angel.require_session()
+    now = _ist_now()
+    cached_at: datetime | None = _CANDLE_CACHE["at"]
+    if cached_at and (now - cached_at) < timedelta(seconds=25) and _CANDLE_CACHE["data"]:
+        return _CANDLE_CACHE["data"]
+
+    idx = angel.resolve_nifty_index()
+    start = now - timedelta(hours=hours + 24)  # padding for gaps
+    rows = angel.candles(
+        exchange="NSE",
+        token=idx["token"],
+        interval="ONE_MINUTE",
+        fromdate=_fmt(start),
+        todate=_fmt(now),
+    )
+    candles = _to_candles(rows)
+    cutoff = now - timedelta(hours=hours)
+    tail = [c for c in candles if c.ts.replace(tzinfo=None) >= cutoff.replace(tzinfo=None)]
+    # Build lightweight-charts format (epoch seconds).
+    series = [
+        {
+            "time": int(c.ts.replace(tzinfo=timezone.utc).timestamp()),
+            "open": c.o,
+            "high": c.h,
+            "low": c.l,
+            "close": c.c,
+        }
+        for c in tail
+    ]
+    out = {"instrument": idx, "candles": series, "asof": now.isoformat(timespec="seconds")}
+    _CANDLE_CACHE["at"] = now
+    _CANDLE_CACHE["data"] = out
+    return out

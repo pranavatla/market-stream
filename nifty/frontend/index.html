@@ -6,6 +6,7 @@
 <title>NIFTY Options Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   :root{
     --bg:#0a0e0d; --panel:#111715; --line:#1f2c28; --line2:#2c3d37;
@@ -70,8 +71,9 @@
   .chartWrap{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:12px}
   .chartHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
   .chartTitle{font-family:var(--disp);font-weight:600;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
-  .chartBox{height:560px;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--bg)}
+  .chartBox{height:560px;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--bg);position:relative}
   @media(max-width:760px){.chartBox{height:420px}}
+  .chartErr{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);padding:18px;text-align:center;line-height:1.6}
 </style>
 </head>
 <body>
@@ -182,33 +184,46 @@ function _renderLive(){
 }
 
 function loadTradingViewChart(){
-  const container = $('tvChart');
-  container.innerHTML = `
-    <div class="tradingview-widget-container" style="height:100%;width:100%">
-      <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
-    </div>
-  `;
-  const script = document.createElement('script');
-  script.type = 'text/javascript';
-  script.async = true;
-  script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-  script.text = JSON.stringify({
-    autosize: true,
-    symbol: "NSE:NIFTY",
-    interval: "1",
-    range: "1D",
-    timezone: "Asia/Kolkata",
-    theme: "dark",
-    style: "1",
-    locale: "en",
-    hide_side_toolbar: true,
-    allow_symbol_change: false,
-    withdateranges: true,
-    details: false,
-    calendar: false,
-    support_host: "https://www.tradingview.com"
+  // Replaced TradingView embed with a native chart from SmartAPI candle data,
+  // to guarantee we always show NIFTY (no symbol fallback like AAPL).
+  const el = $('tvChart');
+  if(!window.LightweightCharts){
+    el.innerHTML = `<div class="chartErr">Chart library failed to load. Try a hard refresh or disable blockers.</div>`;
+    return;
+  }
+  el.innerHTML = '';
+  const chart = LightweightCharts.createChart(el, {
+    width: el.clientWidth,
+    height: el.clientHeight,
+    layout: { background: { type: 'solid', color: '#0a0e0d' }, textColor: '#d8e6df' },
+    grid: { vertLines: { color: '#1f2c28' }, horzLines: { color: '#1f2c28' } },
+    timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 2 },
+    crosshair: { mode: 0 },
   });
-  container.querySelector('.tradingview-widget-container').appendChild(script);
+  const series = chart.addCandlestickSeries({
+    upColor: '#2fd27a',
+    downColor: '#ff5a52',
+    wickUpColor: '#2fd27a',
+    wickDownColor: '#ff5a52',
+    borderUpColor: '#2fd27a',
+    borderDownColor: '#ff5a52',
+  });
+
+  async function refresh(){
+    try{
+      const d = await api('/market/nifty/candles?hours=24');
+      series.setData(d.candles || []);
+    }catch(e){
+      el.innerHTML = `<div class="chartErr">Chart data error: ${String(e.message||e)}</div>`;
+    }
+  }
+  refresh();
+  setInterval(refresh, 30000);
+
+  const ro = new ResizeObserver(() => {
+    chart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+  });
+  ro.observe(el);
 }
 async function api(path, opts){
   const o = opts ? {...opts} : {};
@@ -331,8 +346,19 @@ async function analyze(){
     const a=await api('/advisory/auto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(req)});
     if(a.error){ $('advBox').innerHTML=`<p class="muted">⚠ ${a.error}</p>`; return; }
     const v=(a.verdict||'wait');
+    const f=a._facts||null;
+    const facts = f ? `
+      <div class="kv"><b>Spot</b><span class="v">₹${Number(f.spot||0).toFixed(2)}</span></div>
+      <div class="kv"><b>Trend</b><span class="v">${f.trend||'—'}</span></div>
+      <div class="kv"><b>Momentum</b><span class="v">5m ${(f.m5_pct==null?'—':f.m5_pct.toFixed(2)+'%')} · 15m ${(f.m15_pct==null?'—':f.m15_pct.toFixed(2)+'%')}</span></div>
+      <div class="kv"><b>RSI14</b><span class="v">${(f.rsi14==null?'—':Number(f.rsi14).toFixed(1))}</span></div>
+      <div class="kv"><b>CE / PE</b><span class="v">₹${Number(f.ce_ltp||0).toFixed(2)} / ₹${Number(f.pe_ltp||0).toFixed(2)} (Δ ${Number(f.spread||0).toFixed(2)})</span></div>
+      <div class="muted" style="margin-top:6px">asof ${f.asof||''}</div>
+    ` : '';
+
     $('advBox').innerHTML=`<div class="verdict ${v}">
       <span class="tag">${v}</span> — ${a.one_liner||''}
+      ${facts}
       <ul>${(a.supports||[]).map(s=>`<li>${s}</li>`).join('')}${(a.against||[]).map(s=>`<li class="bad">${s}</li>`).join('')}</ul>
       <p class="muted">${a.theta_iv_note||''}</p></div>`;
   }catch(e){ $('advBox').innerHTML=`<p class="muted">⚠ ${e.message}</p>`; }

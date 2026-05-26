@@ -147,16 +147,20 @@ def advisory_auto(req: AutoAdviceReq):
         raise HTTPException(400, "Not logged in. Click Login first.")
 
     snap = market.nifty_spot_snapshot()
-    opt = market.option_snapshot(
-        symbol=req.symbol, expiry=req.expiry, strike=req.strike, opt_type=req.opt_type
-    )
+    pair = market.option_pair_snapshot(symbol=req.symbol, expiry=req.expiry, strike=req.strike)
     ctx = {
         "thesis": req.thesis,
         "spot": snap["spot"],
         "range_24h": snap["range_24h"],
+        "momentum": snap.get("momentum"),
+        "spot_levels": snap.get("spot_levels"),
         "indicators": snap["indicators"],
         "candidate": f"{req.strike}{req.opt_type.upper()} {req.expiry}",
-        "option_ltp": opt["ltp"],
+        "options": {
+            "ce_ltp": pair["ce"]["ltp"],
+            "pe_ltp": pair["pe"]["ltp"],
+            "premium_spread": pair["premium_spread"],
+        },
         "rules": [
             "buy options only",
             "do not enter outside entry window",
@@ -164,7 +168,31 @@ def advisory_auto(req: AutoAdviceReq):
             "prefer waiting if chart state is unclear",
         ],
     }
-    return analysis.review_setup(ctx)
+    out = analysis.review_setup(ctx)
+    # Attach factual snapshot for UI display (does not affect order flow).
+    try:
+        out["_facts"] = {
+            "spot": snap["spot"],
+            "trend": snap["indicators"].get("trend"),
+            "m5_pct": (snap.get("momentum") or {}).get("m5", {}).get("delta_pct"),
+            "m15_pct": (snap.get("momentum") or {}).get("m15", {}).get("delta_pct"),
+            "rsi14": snap["indicators"].get("rsi14"),
+            "vwap_1d": snap["indicators"].get("vwap_1d"),
+            "ce_ltp": pair["ce"]["ltp"],
+            "pe_ltp": pair["pe"]["ltp"],
+            "spread": pair["premium_spread"],
+            "asof": snap.get("asof"),
+        }
+    except Exception:
+        pass
+    return out
+
+
+@app.get("/market/nifty/candles")
+def market_nifty_candles(hours: int = 24):
+    if angel.session is None:
+        raise HTTPException(400, "Not logged in. Click Login first.")
+    return market.nifty_candles_1m(hours=hours)
 
 
 @app.post("/order/prepare")
