@@ -190,8 +190,12 @@ def advisory_auto(req: AutoAdviceReq):
 
 @app.get("/market/nifty/candles")
 def market_nifty_candles(hours: int = 24):
+    # Chart should render even before explicit Login. We only use this for market data.
     if angel.session is None:
-        raise HTTPException(400, "Not logged in. Click Login first.")
+        try:
+            angel.login()
+        except Exception as e:
+            raise HTTPException(400, f"Market data login failed: {e}")
     return market.nifty_candles_1m(hours=hours)
 
 

@@ -21,6 +21,16 @@ def _ist_now() -> datetime:
     ist = timezone(timedelta(hours=5, minutes=30))
     return datetime.now(tz=ist)
 
+def _as_aware_ist(dt: datetime) -> datetime:
+    """
+    SmartAPI candle timestamps are exchange-local (IST) strings in most cases.
+    Normalize everything to timezone-aware IST so we can correctly convert to UTC epoch.
+    """
+    ist = timezone(timedelta(hours=5, minutes=30))
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=ist)
+    return dt.astimezone(ist)
+
 
 def _fmt(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M")
@@ -47,8 +57,11 @@ def _to_candles(rows: list[list]) -> list[Candle]:
                 ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             except Exception:
                 ts_dt = datetime.strptime(ts, "%Y-%m-%d %H:%M")
+            if ts_dt.tzinfo is None:
+                ts_dt = _as_aware_ist(ts_dt)
         else:
-            ts_dt = datetime.fromtimestamp(float(ts))
+            # Treat numeric timestamps as epoch seconds (UTC).
+            ts_dt = datetime.fromtimestamp(float(ts), tz=timezone.utc)
         out.append(
             Candle(
                 ts=ts_dt,
@@ -262,11 +275,15 @@ def nifty_candles_1m(hours: int = 24) -> dict:
     )
     candles = _to_candles(rows)
     cutoff = now - timedelta(hours=hours)
-    tail = [c for c in candles if c.ts.replace(tzinfo=None) >= cutoff.replace(tzinfo=None)]
+    tail: list[Candle] = []
+    cutoff_ist = _as_aware_ist(cutoff)
+    for c in candles:
+        if _as_aware_ist(c.ts) >= cutoff_ist:
+            tail.append(c)
     # Build lightweight-charts format (epoch seconds).
     series = [
         {
-            "time": int(c.ts.replace(tzinfo=timezone.utc).timestamp()),
+            "time": int(_as_aware_ist(c.ts).astimezone(timezone.utc).timestamp()),
             "open": c.o,
             "high": c.h,
             "low": c.l,

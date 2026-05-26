@@ -93,7 +93,7 @@
 
   <div class="chartWrap" id="chartWrap" style="display:block;margin-bottom:14px">
     <div class="chartHead">
-      <div class="chartTitle">Live NIFTY 50 Chart (Last 1D)</div>
+      <div class="chartTitle">Live NIFTY 50 Chart (Last 2D · IST)</div>
     </div>
     <div class="chartBox" id="tvChart" style="display:block"></div>
   </div>
@@ -192,6 +192,26 @@ function loadTradingViewChart(){
     return;
   }
   el.innerHTML = '';
+  const istFmt = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const formatIst = (t) => {
+    try{
+      if(typeof t === 'number'){
+        return istFmt.format(new Date(t * 1000));
+      }
+      if(t && typeof t === 'object' && 'year' in t){
+        // BusinessDay: display at midnight IST for the given day.
+        const d = new Date(Date.UTC(t.year, (t.month || 1) - 1, t.day || 1));
+        return istFmt.format(d);
+      }
+    }catch(e){}
+    return '';
+  };
   const chart = LightweightCharts.createChart(el, {
     width: el.clientWidth,
     height: el.clientHeight,
@@ -199,6 +219,7 @@ function loadTradingViewChart(){
     grid: { vertLines: { color: '#1f2c28' }, horzLines: { color: '#1f2c28' } },
     timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 2 },
     crosshair: { mode: 0 },
+    localization: { locale: 'en-IN', timeFormatter: formatIst },
   });
   const series = chart.addCandlestickSeries({
     upColor: '#2fd27a',
@@ -211,7 +232,7 @@ function loadTradingViewChart(){
 
   async function refresh(){
     try{
-      const d = await api('/market/nifty/candles?hours=24');
+      const d = await api('/market/nifty/candles?hours=48');
       series.setData(d.candles || []);
     }catch(e){
       el.innerHTML = `<div class="chartErr">Chart data error: ${String(e.message||e)}</div>`;
