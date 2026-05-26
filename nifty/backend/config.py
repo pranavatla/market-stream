@@ -59,6 +59,7 @@ class Settings:
     nifty_lot_size: int = int(_f("NIFTY_LOT_SIZE", 75))
     confirm_mode: str = os.getenv("CONFIRM_MODE", "manual")  # manual | auto
     exchange: str = "NFO"  # NSE F&O segment for options
+    build_id: str = os.getenv("BUILD_ID", "")
 
 
 settings = Settings()

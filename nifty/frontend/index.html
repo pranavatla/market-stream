@@ -82,6 +82,7 @@
       <div><span class="dot" id="conn"></span><span id="connTxt">disconnected</span></div>
       <div id="mode">mode: manual-confirm</div>
       <div id="live">live: —</div>
+      <div id="build" style="opacity:.7">build: —</div>
       <div style="margin-top:6px">
         <button id="loginBtn" onclick="login()" style="padding:6px 10px;font-size:11px">Login</button>
       </div>
@@ -248,6 +249,7 @@ async function boot(){
   try{ const h=await api('/health'); $('conn').classList.toggle('on',h.logged_in);
     $('connTxt').textContent = h.logged_in?'connected':'not logged in';
     $('mode').textContent='mode: '+h.confirm_mode;
+    $('build').textContent='build: '+(h.build_id||'unknown');
     traderTokenRequired = !!h.trader_token_required;
     isLoggedIn = !!h.logged_in;
     _renderLive();

@@ -10,6 +10,8 @@ Flow for a trade (manual mode):
 Safety endpoints: /kill, /unkill, /squareoff, /risk
 """
 import logging
+import os
+import subprocess
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,6 +48,23 @@ class NoStoreHTMLMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(NoStoreHTMLMiddleware)
 
+def _compute_build_id() -> str:
+    try:
+        # Repo root is two levels up from nifty/backend.
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=repo_root,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+        ).strip()
+        return out or ""
+    except Exception:
+        return ""
+
+BUILD_ID = settings.build_id or _compute_build_id() or "unknown"
+
 def _require_trader(request: Request):
     """
     Second factor for LIVE actions, on top of Nginx basic-auth.
@@ -80,7 +99,8 @@ class AnalyzeReq(BaseModel):
 def health():
     return {"ok": True, "logged_in": angel.session is not None,
             "confirm_mode": settings.confirm_mode,
-            "trader_token_required": bool(settings.trader_token)}
+            "trader_token_required": bool(settings.trader_token),
+            "build_id": BUILD_ID}
 
 
 @app.post("/login")
