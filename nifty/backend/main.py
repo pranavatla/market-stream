@@ -78,6 +78,15 @@ def _require_trader(request: Request):
         raise HTTPException(401, "Missing/invalid X-Trader-Token")
 
 
+def _ensure_market_session():
+    if angel.session is not None:
+        return
+    try:
+        angel.login()
+    except Exception as e:
+        raise HTTPException(400, f"Market data login failed: {e}")
+
+
 class OptionRef(BaseModel):
     symbol: str = "NIFTY"
     expiry: str            # e.g. 29MAY2025
@@ -146,8 +155,7 @@ def market_setup(req: SetupReq):
     """
     Factual setup snapshot for the console. No order placement and no advisory text.
     """
-    if angel.session is None:
-        raise HTTPException(400, "Not logged in. Click Login first.")
+    _ensure_market_session()
     snap = market.nifty_spot_snapshot()
     pair = market.option_pair_snapshot(symbol=req.symbol, expiry=req.expiry, strike=req.strike)
     return {
@@ -176,8 +184,7 @@ def market_setup(req: SetupReq):
 
 @app.get("/market/spot")
 def market_spot():
-    if angel.session is None:
-        raise HTTPException(400, "Not logged in. Click Login first.")
+    _ensure_market_session()
     snap = market.nifty_spot_snapshot()
     return {
         "spot": snap["spot"],
@@ -244,11 +251,7 @@ def advisory_auto(req: AutoAdviceReq):
 @app.get("/market/nifty/candles")
 def market_nifty_candles(hours: int = 24):
     # Chart should render even before explicit Login. We only use this for market data.
-    if angel.session is None:
-        try:
-            angel.login()
-        except Exception as e:
-            raise HTTPException(400, f"Market data login failed: {e}")
+    _ensure_market_session()
     return market.nifty_candles_1m(hours=hours)
 
 
