@@ -53,6 +53,9 @@ class Settings:
     risk: RiskLimits = field(default_factory=RiskLimits)
     anthropic_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+    gemini_key: str = os.getenv("GEMINI_API_KEY", "")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
+    advisory_primary: str = os.getenv("ADVISORY_PRIMARY", "auto")  # auto | claude | gemini
     # Optional: require a second secret for LIVE actions (execute/kill/squareoff).
     trader_token: str = os.getenv("TRADER_TOKEN", "")
     # NIFTY lot size — verify against current exchange spec before trading

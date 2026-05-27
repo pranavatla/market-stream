@@ -103,6 +103,8 @@
   .fundCard span{font-family:var(--disp);font-size:22px;font-weight:800;color:var(--txt)}
   .fundCard span.pos{color:var(--green)}
   .fundCard span.neg{color:var(--red)}
+  .abRows{margin-top:8px}
+  .abRows .kv{font-size:11px}
 </style>
 </head>
 <body>
@@ -190,7 +192,12 @@
         <button class="chip" onclick="setThesis('range compression before expansion')">compression</button>
       </div>
       <button style="width:100%;margin-top:8px" onclick="analyze()">Build Trade Plan</button>
+      <div class="row" style="margin-top:8px">
+        <button onclick="runAdvisoryAB()">Run Model A/B</button>
+        <button onclick="refreshAdvisoryStats()">Refresh Stats</button>
+      </div>
       <div id="advBox"></div>
+      <div id="abBox" class="abRows"></div>
       <p class="muted">This panel reviews context only. Orders still go through quote, prepare, and confirm.</p>
     </div>
 
@@ -231,6 +238,7 @@ let adviceSide = 'CE';
 let latestSetup = null;
 let expiryCache = [];
 let latestOverview = null;
+let lastAB = null;
 
 const $ = id => document.getElementById(id);
 function log(msg){ const l=$('log'); l.innerHTML = `<div><b>${new Date().toLocaleTimeString()}</b> ${msg}</div>` + l.innerHTML; }
@@ -477,6 +485,22 @@ function renderOverview(overview){
     <div class="muted">asof ${overview.asof || '—'}</div>`;
 }
 
+function renderABStats(stats){
+  if(!stats || !stats.samples){
+    $('abBox').innerHTML = '<p class="muted">Model stats will appear after A/B runs.</p>';
+    return;
+  }
+  const wins = stats.wins || {};
+  const lat = stats.latency_ms_avg || {};
+  const score = stats.score_avg || {};
+  $('abBox').innerHTML = `
+    <div class="kv"><b>Samples</b><span class="v">${stats.samples}</span></div>
+    <div class="kv"><b>Wins</b><span class="v">Claude ${wins.claude||0} · Gemini ${wins.gemini||0} · Tie ${wins.tie||0}</span></div>
+    <div class="kv"><b>Avg latency</b><span class="v">Claude ${lat.claude ?? '—'}ms · Gemini ${lat.gemini ?? '—'}ms</span></div>
+    <div class="kv"><b>Avg score</b><span class="v">Claude ${score.claude ?? '—'} · Gemini ${score.gemini ?? '—'}</span></div>
+    <div class="kv"><b>Last winner</b><span class="v">${stats.last_winner || '—'}</span></div>`;
+}
+
 async function refreshOverview(){
   try{
     await ensureValidExpiry({silent:true});
@@ -489,6 +513,15 @@ async function refreshOverview(){
   }catch(e){
     $('chainBox').innerHTML = `<p class="muted">⚠ ${e.message}</p>`;
     $('fundBox').innerHTML = `<p class="muted">⚠ ${e.message}</p>`;
+  }
+}
+
+async function refreshAdvisoryStats(){
+  try{
+    const s = await api('/advisory/stats');
+    renderABStats(s);
+  }catch(e){
+    $('abBox').innerHTML = `<p class="muted">⚠ ${e.message}</p>`;
   }
 }
 
@@ -665,6 +698,7 @@ async function analyze(){
     };
     const a=await api('/advisory/auto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(req)});
     if(a.error){ $('advBox').innerHTML=`<p class="muted">⚠ ${a.error}</p>`; return; }
+    lastAB = a._ab || null;
     const v=(a.verdict||'wait');
     const f=a._facts||null;
     const facts = f ? `
@@ -676,12 +710,41 @@ async function analyze(){
       <div class="muted" style="margin-top:6px">asof ${f.asof||''}</div>
     ` : '';
 
+    const modelLine = a._model ? `<div class="kv"><b>Model</b><span class="v">${a._model.provider} · ${a._model.model || ''} · ${a._model.latency_ms || '—'}ms</span></div>` : '';
+    const winnerLine = a._ab ? `<div class="kv"><b>A/B winner</b><span class="v">${a._ab.winner || '—'}</span></div>` : '';
     $('advBox').innerHTML=`<div class="verdict ${v}">
       <span class="tag">${v}</span> — ${a.one_liner||''}
+      ${modelLine}
+      ${winnerLine}
       ${facts}
       <ul>${(a.supports||[]).map(s=>`<li>${s}</li>`).join('')}${(a.against||[]).map(s=>`<li class="bad">${s}</li>`).join('')}${(a.entry_checks||[]).map(s=>`<li>${s}</li>`).join('')}${(a.checklist||[]).map(s=>`<li>${s}</li>`).join('')}</ul>
       <p class="muted">${a.theta_iv_note||''}</p></div>`;
+    if(a._ab && a._ab.stats){
+      renderABStats(a._ab.stats);
+    } else {
+      refreshAdvisoryStats();
+    }
   }catch(e){ $('advBox').innerHTML=`<p class="muted">⚠ ${e.message}</p>`; }
+}
+
+async function runAdvisoryAB(){
+  try{
+    await ensureValidExpiry();
+    const req = {
+      symbol: $('symbol').value || 'NIFTY',
+      expiry: $('expiry').value.toUpperCase(),
+      strike: Number($('strike').value),
+      opt_type: (prepared && prepared.opt_type) ? prepared.opt_type : adviceSide,
+      thesis: $('thesis').value || ''
+    };
+    const out = await api('/advisory/ab',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(req)});
+    lastAB = out;
+    const runs = (out.runs || []).map(r => `${r.provider}: ${r.ok ? `score ${r.score} · ${r.latency_ms}ms` : `error ${r.error}`}`).join(' | ');
+    log(`A/B winner: ${out.winner || 'tie'} — ${runs}`);
+    renderABStats(out.stats || {});
+  }catch(e){
+    log('⚠ A/B failed: '+e.message);
+  }
 }
 
 async function refreshRisk(){
@@ -703,7 +766,7 @@ async function squareoff(){
 }
 
 loadNiftyChart();
-boot(); setInterval(refreshRisk, 5000); setInterval(refreshOverview, 30000);
+boot(); setInterval(refreshRisk, 5000); setInterval(refreshOverview, 30000); setInterval(refreshAdvisoryStats, 45000);
 </script>
 </body>
 </html>

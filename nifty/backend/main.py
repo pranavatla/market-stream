@@ -240,7 +240,15 @@ def advisory_auto(req: AutoAdviceReq):
             "prefer waiting if chart state is unclear",
         ],
     }
-    out = analysis.review_setup(ctx)
+    ab = analysis.review_setup_auto(ctx)
+    if ab.get("error"):
+        raise HTTPException(400, ab["error"])
+    out = ab["advice"]
+    out["_ab"] = {
+        "winner": ab.get("winner"),
+        "runs": ab.get("runs", []),
+        "stats": ab.get("stats", {}),
+    }
     # Attach factual snapshot for UI display (does not affect order flow).
     try:
         out["_facts"] = {
@@ -258,6 +266,43 @@ def advisory_auto(req: AutoAdviceReq):
     except Exception:
         pass
     return out
+
+
+@app.post("/advisory/ab")
+def advisory_ab(req: AutoAdviceReq):
+    if angel.session is None:
+        raise HTTPException(400, "Not logged in. Click Login first.")
+    snap = market.nifty_spot_snapshot()
+    pair = market.option_pair_snapshot(symbol=req.symbol, expiry=req.expiry, strike=req.strike)
+    ctx = {
+        "thesis": req.thesis,
+        "spot": snap["spot"],
+        "range_24h": snap["range_24h"],
+        "momentum": snap.get("momentum"),
+        "spot_levels": snap.get("spot_levels"),
+        "indicators": snap["indicators"],
+        "candidate": f"{req.strike}{req.opt_type.upper()} {req.expiry}",
+        "options": {
+            "ce_ltp": pair["ce"]["ltp"],
+            "pe_ltp": pair["pe"]["ltp"],
+            "premium_spread": pair["premium_spread"],
+        },
+        "rules": [
+            "buy options only",
+            "do not enter outside entry window",
+            "respect max loss per trade/day",
+            "prefer waiting if chart state is unclear",
+        ],
+    }
+    out = analysis.review_setup_auto(ctx)
+    if out.get("error"):
+        raise HTTPException(400, out["error"])
+    return out
+
+
+@app.get("/advisory/stats")
+def advisory_stats():
+    return analysis.advisory_stats()
 
 
 @app.get("/market/nifty/candles")
