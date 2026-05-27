@@ -142,8 +142,8 @@ class AngelClient:
     def resolve_nifty_index(self) -> dict:
         """
         Resolve NIFTY 50 spot index instrument for NSE quotes/candles.
-        SmartAPI historical candle data for indices works with the canonical
-        token 26000 and tradingsymbol NIFTY.
+        SmartAPI historical candle data for NIFTY 50 works with the AMXIDX
+        token from the instrument master.
         """
         self._ensure_instruments()
         for ins in self._instruments:
@@ -151,11 +151,10 @@ class AngelClient:
                 ins.get("exch_seg") == "NSE"
                 and ins.get("name") == "NIFTY"
                 and ins.get("symbol") in ("Nifty 50", "NIFTY")
+                and ins.get("instrumenttype") == "AMXIDX"
             ):
-                # Use the well-known token for SmartAPI historical data.
-                return {"token": "26000", "tradingsymbol": "NIFTY"}
-        # Hard fallback — token rarely changes
-        return {"token": "26000", "tradingsymbol": "NIFTY"}
+                return {"token": ins["token"], "tradingsymbol": ins["symbol"]}
+        return {"token": "99926000", "tradingsymbol": "Nifty 50"}
 
 
 angel = AngelClient()
