@@ -256,7 +256,16 @@ function loadNiftyChart(){
     height: el.clientHeight,
     layout: { background: { type: 'solid', color: '#ffffff' }, textColor: '#23364f' },
     grid: { vertLines: { color: '#e2e9f2' }, horzLines: { color: '#e2e9f2' } },
-    timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 2, borderColor: '#9fb0c8' },
+    timeScale: {
+      timeVisible: true,
+      secondsVisible: false,
+      rightOffset: 2,
+      borderColor: '#9fb0c8',
+      tickMarkFormatter: (time) => {
+        if(typeof time !== 'number') return '';
+        return istFmt.format(new Date(time * 1000));
+      },
+    },
     rightPriceScale: { borderColor: '#9fb0c8' },
     leftPriceScale: { visible: false },
     handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
