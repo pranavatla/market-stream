@@ -9,15 +9,15 @@
 <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   :root{
-    --bg:#0a0e0d; --panel:#111715; --line:#1f2c28; --line2:#2c3d37;
-    --txt:#d8e6df; --dim:#6f8279; --amber:#f5b942; --green:#2fd27a;
-    --red:#ff5a52; --blue:#5aa9ff; --ink:#05201a;
+    --bg:#f3f6fb; --panel:#ffffff; --line:#d6dee8; --line2:#bdc8d7;
+    --txt:#132235; --dim:#4f637a; --amber:#e8a318; --green:#12875d;
+    --red:#c53b32; --blue:#2e6dd8; --ink:#ffffff;
     --mono:'JetBrains Mono',monospace; --disp:'Bricolage Grotesque',sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13px;
-    background-image:radial-gradient(circle at 20% -10%,rgba(47,210,122,.06),transparent 40%),
-                     radial-gradient(circle at 100% 0,rgba(245,185,66,.05),transparent 35%);
+    background-image:radial-gradient(circle at 20% -10%,rgba(46,109,216,.12),transparent 40%),
+                     radial-gradient(circle at 100% 0,rgba(18,135,93,.10),transparent 35%);
     min-height:100vh;padding:18px}
   .wrap{max-width:1080px;margin:0 auto}
   header{display:flex;align-items:baseline;justify-content:space-between;
@@ -26,52 +26,52 @@
   h1 span{color:var(--green)}
   .status{font-size:11px;color:var(--dim);text-align:right;line-height:1.6}
   .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:5px}
-  .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .dot.on{background:var(--green);box-shadow:0 0 6px rgba(18,135,93,.35)}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:760px){.grid{grid-template-columns:1fr}}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;box-shadow:0 6px 18px rgba(15,31,54,.06)}
   .panel h2{font-family:var(--disp);font-weight:600;font-size:13px;letter-spacing:.08em;
     text-transform:uppercase;color:var(--dim);margin-bottom:12px;display:flex;justify-content:space-between}
   label{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:8px 0 3px}
-  input,select{width:100%;background:var(--bg);border:1px solid var(--line2);color:var(--txt);
+  input,select{width:100%;background:#fdfefe;border:1px solid var(--line2);color:var(--txt);
     font-family:var(--mono);font-size:13px;padding:8px 10px;border-radius:6px}
-  input:focus,select:focus{outline:none;border-color:var(--green)}
+  input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,109,216,.12)}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
   button{font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.05em;
-    border:1px solid var(--line2);background:var(--bg);color:var(--txt);padding:10px;
+    border:1px solid var(--line2);background:#f9fbfe;color:var(--txt);padding:10px;
     border-radius:6px;cursor:pointer;transition:.12s;text-transform:uppercase}
-  button:hover{border-color:var(--green);color:var(--green)}
-  button.ce{border-color:#1f4d3a}  button.ce:hover{background:var(--green);color:var(--ink);border-color:var(--green)}
-  button.pe{border-color:#4d2020} button.pe:hover{background:var(--red);color:#fff;border-color:var(--red)}
-  button.exec{background:var(--amber);color:var(--ink);border-color:var(--amber);width:100%;margin-top:10px}
-  button.exec:hover{filter:brightness(1.1);color:var(--ink)}
+  button:hover{border-color:var(--blue);color:var(--blue);background:#eef4ff}
+  button.ce{border-color:#8fc7b4}  button.ce:hover{background:#e7f7f1;color:#0d6b49;border-color:#47a889}
+  button.pe{border-color:#e5a9a5} button.pe:hover{background:#fdeeee;color:#9f2a23;border-color:#d7726c}
+  button.exec{background:var(--amber);color:#352100;border-color:#d08a00;width:100%;margin-top:10px}
+  button.exec:hover{filter:brightness(1.03);color:#352100;background:#f4b93f}
   button.kill{background:var(--red);color:#fff;border-color:var(--red);width:100%}
-  button.kill:hover{filter:brightness(1.1);color:#fff}
+  button.kill:hover{filter:brightness(1.03);color:#fff}
   .quote{font-family:var(--disp);font-weight:800;font-size:34px;letter-spacing:-.02em;margin:6px 0}
   .quote small{font-size:13px;color:var(--dim);font-weight:600}
-  .kv{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--line);font-size:12px}
+  .kv{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #d3dce8;font-size:12px}
   .kv:last-child{border:0} .kv b{color:var(--txt)} .kv .v{color:var(--green)}
   .kv .v.neg{color:var(--red)}
-  .verdict{margin-top:10px;padding:10px;border-radius:6px;border:1px solid var(--line2);font-size:12px}
-  .verdict.consider{border-color:var(--green);background:rgba(47,210,122,.07)}
-  .verdict.wait{border-color:var(--amber);background:rgba(245,185,66,.07)}
-  .verdict.skip{border-color:var(--red);background:rgba(255,90,82,.07)}
+  .verdict{margin-top:10px;padding:10px;border-radius:6px;border:1px solid var(--line2);font-size:12px;background:#fafcff}
+  .verdict.consider{border-color:#7ac5a8;background:#ecfaf4}
+  .verdict.wait{border-color:#e5bf73;background:#fff8e7}
+  .verdict.skip{border-color:#e2a19d;background:#fff0ef}
   .tag{font-family:var(--disp);font-weight:800;text-transform:uppercase;font-size:14px;letter-spacing:.05em}
   ul{list-style:none;margin-top:6px} li{padding:2px 0 2px 14px;position:relative;color:var(--dim);font-size:11px}
   li:before{content:'›';position:absolute;left:0;color:var(--green)}
   li.bad:before{content:'×';color:var(--red)}
   .log{font-size:11px;color:var(--dim);max-height:120px;overflow:auto;line-height:1.7}
-  .log b{color:var(--amber)}
+  .log b{color:#9a6300}
   .banner{background:rgba(255,90,82,.12);border:1px solid var(--red);color:var(--red);
     padding:8px 12px;border-radius:6px;font-size:11px;margin-bottom:14px;display:none}
   .banner.show{display:block}
   .muted{color:var(--dim);font-size:11px;line-height:1.6;margin-top:8px}
   .full{grid-column:1/-1}
-  .chartWrap{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:12px}
+  .chartWrap{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:12px;box-shadow:0 6px 18px rgba(15,31,54,.06)}
   .chartHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
   .chartTitle{font-family:var(--disp);font-weight:600;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
-  .chartBox{height:560px;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--bg);position:relative}
+  .chartBox{height:560px;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:#ffffff;position:relative}
   @media(max-width:760px){.chartBox{height:420px}}
   .chartErr{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);padding:18px;text-align:center;line-height:1.6}
   .chartLoad{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;z-index:1}
@@ -79,14 +79,14 @@
   .chip{width:auto;padding:6px 8px;font-size:10px;text-transform:none;letter-spacing:0;color:var(--dim)}
   .chip:hover,.chip.on{border-color:var(--green);color:var(--green)}
   .setupGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-  .setupCard{border:1px solid var(--line);border-radius:8px;padding:9px;background:rgba(10,14,13,.55)}
+  .setupCard{border:1px solid var(--line);border-radius:8px;padding:9px;background:#f7fafe}
   .setupCard b{display:block;color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
   .setupCard span{font-family:var(--disp);font-size:20px;font-weight:800}
   .setupCard small{display:block;color:var(--dim);font-size:10px;margin-top:2px}
   .sidePick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-  .sidePick button.on.ce{background:rgba(47,210,122,.14);color:var(--green);border-color:var(--green)}
-  .sidePick button.on.pe{background:rgba(255,90,82,.14);color:var(--red);border-color:var(--red)}
-  .meter{height:5px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:5px}
+  .sidePick button.on.ce{background:#e7f7f1;color:#0d6b49;border-color:#47a889}
+  .sidePick button.on.pe{background:#fdeeee;color:#9f2a23;border-color:#d7726c}
+  .meter{height:5px;border-radius:999px;background:#dde6f0;overflow:hidden;margin-top:5px}
   .meter i{display:block;height:100%;width:50%;background:var(--green)}
 </style>
 </head>
@@ -253,26 +253,26 @@ function loadNiftyChart(){
   const chart = LightweightCharts.createChart(el, {
     width: el.clientWidth,
     height: el.clientHeight,
-    layout: { background: { type: 'solid', color: '#0a0e0d' }, textColor: '#d8e6df' },
-    grid: { vertLines: { color: '#1f2c28' }, horzLines: { color: '#1f2c28' } },
+    layout: { background: { type: 'solid', color: '#ffffff' }, textColor: '#23364f' },
+    grid: { vertLines: { color: '#e2e9f2' }, horzLines: { color: '#e2e9f2' } },
     timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 2 },
     crosshair: { mode: 0 },
     localization: { locale: 'en-IN', timeFormatter: formatIst },
   });
   const series = chart.addCandlestickSeries ? chart.addCandlestickSeries({
-    upColor: '#2fd27a',
-    downColor: '#ff5a52',
-    wickUpColor: '#2fd27a',
-    wickDownColor: '#ff5a52',
-    borderUpColor: '#2fd27a',
-    borderDownColor: '#ff5a52',
+    upColor: '#0f9d68',
+    downColor: '#d14b42',
+    wickUpColor: '#0f9d68',
+    wickDownColor: '#d14b42',
+    borderUpColor: '#0f9d68',
+    borderDownColor: '#d14b42',
   }) : chart.addSeries(LightweightCharts.CandlestickSeries, {
-    upColor: '#2fd27a',
-    downColor: '#ff5a52',
-    wickUpColor: '#2fd27a',
-    wickDownColor: '#ff5a52',
-    borderUpColor: '#2fd27a',
-    borderDownColor: '#ff5a52',
+    upColor: '#0f9d68',
+    downColor: '#d14b42',
+    wickUpColor: '#0f9d68',
+    wickDownColor: '#d14b42',
+    borderUpColor: '#0f9d68',
+    borderDownColor: '#d14b42',
   });
 
   async function refresh(){
