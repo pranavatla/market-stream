@@ -187,11 +187,40 @@ function _renderLive(){
 }
 
 function loadTradingViewChart(){
-  // Replaced TradingView embed with a native chart from SmartAPI candle data,
-  // to guarantee we always show NIFTY (no symbol fallback like AAPL).
   const el = $('tvChart');
+  function renderNiftyFallback(reason){
+    el.innerHTML = '';
+    const widget = document.createElement('div');
+    widget.className = 'tradingview-widget-container';
+    widget.style.height = '100%';
+    widget.style.width = '100%';
+    widget.innerHTML = '<div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>';
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.async = true;
+    script.text = JSON.stringify({
+      autosize: true,
+      symbol: 'NSE:NIFTY',
+      interval: '5',
+      range: '2D',
+      timezone: 'Asia/Kolkata',
+      theme: 'dark',
+      style: '1',
+      locale: 'in',
+      enable_publishing: false,
+      allow_symbol_change: false,
+      hide_side_toolbar: false,
+      details: true,
+      calendar: false,
+      support_host: 'https://www.tradingview.com'
+    });
+    widget.appendChild(script);
+    el.appendChild(widget);
+    if(reason) log('Chart fallback: '+reason);
+  }
+
   if(!window.LightweightCharts){
-    el.innerHTML = `<div class="chartErr">Chart library failed to load. Try a hard refresh or disable blockers.</div>`;
+    renderNiftyFallback('native chart library unavailable');
     return;
   }
   el.innerHTML = '';
@@ -224,7 +253,14 @@ function loadTradingViewChart(){
     crosshair: { mode: 0 },
     localization: { locale: 'en-IN', timeFormatter: formatIst },
   });
-  const series = chart.addCandlestickSeries({
+  const series = chart.addCandlestickSeries ? chart.addCandlestickSeries({
+    upColor: '#2fd27a',
+    downColor: '#ff5a52',
+    wickUpColor: '#2fd27a',
+    wickDownColor: '#ff5a52',
+    borderUpColor: '#2fd27a',
+    borderDownColor: '#ff5a52',
+  }) : chart.addSeries(LightweightCharts.CandlestickSeries, {
     upColor: '#2fd27a',
     downColor: '#ff5a52',
     wickUpColor: '#2fd27a',
@@ -239,16 +275,14 @@ function loadTradingViewChart(){
       const d = await api('/market/nifty/candles?hours=48');
       const candles = d.candles || [];
       if(candles.length === 0){
-        if(loader) loader.textContent = 'No candle data yet. Market may be closed.';
+        renderNiftyFallback('SmartAPI returned no candles');
         return;
       }
       series.setData(candles);
       if(loader) loader.style.display = 'none';
       chart.timeScale().fitContent();
     }catch(e){
-      const msg = String(e.message||e);
-      if(loader) loader.style.display = 'none';
-      el.innerHTML = `<div class="chartErr">Chart data error: ${msg}<br><small style="opacity:.7">Check Angel login or market hours</small></div>`;
+      renderNiftyFallback(String(e.message||e));
     }
   }
   refresh();

@@ -250,7 +250,7 @@ def _momentum(closes: list[float], minutes: int) -> dict:
     return {"delta": float(d), "delta_pct": float(pct)}
 
 
-_CANDLE_CACHE: dict = {"at": None, "data": None}
+_CANDLE_CACHE: dict[int, dict] = {}
 
 
 def nifty_candles_1m(hours: int = 24) -> dict:
@@ -260,9 +260,10 @@ def nifty_candles_1m(hours: int = 24) -> dict:
     """
     angel.require_session()
     now = _ist_now()
-    cached_at: datetime | None = _CANDLE_CACHE["at"]
-    if cached_at and (now - cached_at) < timedelta(seconds=25) and _CANDLE_CACHE["data"]:
-        return _CANDLE_CACHE["data"]
+    cached = _CANDLE_CACHE.get(hours)
+    cached_at: datetime | None = cached["at"] if cached else None
+    if cached_at and (now - cached_at) < timedelta(seconds=25):
+        return cached["data"]
 
     idx = angel.resolve_nifty_index()
     start = now - timedelta(hours=hours + 24)  # padding for gaps
@@ -292,6 +293,5 @@ def nifty_candles_1m(hours: int = 24) -> dict:
         for c in tail
     ]
     out = {"instrument": idx, "candles": series, "asof": now.isoformat(timespec="seconds")}
-    _CANDLE_CACHE["at"] = now
-    _CANDLE_CACHE["data"] = out
+    _CANDLE_CACHE[hours] = {"at": now, "data": out}
     return out
