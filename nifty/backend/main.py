@@ -201,6 +201,12 @@ def market_spot():
     }
 
 
+@app.get("/market/overview")
+def market_overview(symbol: str = "NIFTY", expiry: str | None = None, chain_steps: int = 3):
+    _ensure_market_session()
+    return market.nifty_market_overview(symbol=symbol, expiry=expiry, chain_steps=chain_steps)
+
+
 @app.post("/advisory/auto")
 def advisory_auto(req: AutoAdviceReq):
     """

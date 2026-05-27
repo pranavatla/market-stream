@@ -310,3 +310,86 @@ def nifty_candles_1m(hours: int = 24, session: str = "rolling") -> dict:
     out = {"instrument": idx, "candles": series, "asof": now.isoformat(timespec="seconds")}
     _CANDLE_CACHE[cache_key] = {"at": now, "data": out}
     return out
+
+
+def nifty_market_overview(
+    *,
+    symbol: str = "NIFTY",
+    expiry: str | None = None,
+    chain_steps: int = 3,
+    strike_step: int = 50,
+) -> dict:
+    """
+    Market overview for dashboard side-panels:
+    - fundamentals: prev close, open, high, low, spot
+    - option chain: CE/PE LTP around ATM strike
+    """
+    angel.require_session()
+    now = _ist_now()
+    session_start = _today_session_start(now)
+
+    idx = angel.resolve_nifty_index()
+    rows = angel.candles(
+        exchange="NSE",
+        token=idx["token"],
+        interval="ONE_MINUTE",
+        fromdate=_fmt(session_start - timedelta(days=2)),
+        todate=_fmt(now),
+    )
+    candles = _to_candles(rows)
+    if not candles:
+        raise RuntimeError("No candle data returned for NIFTY spot.")
+
+    session_start_ist = _as_aware_ist(session_start)
+    today = [c for c in candles if _as_aware_ist(c.ts) >= session_start_ist]
+    if not today:
+        raise RuntimeError("No session candles available for NIFTY.")
+
+    prev = [c for c in candles if _as_aware_ist(c.ts) < session_start_ist]
+    prev_close = prev[-1].c if prev else today[0].o
+    spot = today[-1].c
+    day_open = today[0].o
+    day_high = max(c.h for c in today)
+    day_low = min(c.l for c in today)
+    day_change = spot - prev_close
+    day_change_pct = (day_change / prev_close * 100.0) if prev_close else 0.0
+    atm = int(round(spot / strike_step) * strike_step)
+
+    resolved_expiry = expiry or (angel.option_expiries(symbol) or [None])[0]
+    if not resolved_expiry:
+        raise RuntimeError(f"No upcoming expiry found for {symbol}.")
+
+    chain_steps = max(1, min(int(chain_steps), 6))
+    strikes = [atm + i * strike_step for i in range(-chain_steps, chain_steps + 1)]
+    chain_rows: list[dict] = []
+    for strike in strikes:
+        try:
+            pair = option_pair_snapshot(symbol=symbol, expiry=resolved_expiry, strike=strike)
+            chain_rows.append(
+                {
+                    "strike": strike,
+                    "ce_ltp": pair["ce"]["ltp"],
+                    "pe_ltp": pair["pe"]["ltp"],
+                    "spread": pair["premium_spread"],
+                }
+            )
+        except Exception:
+            # Some strikes may not exist yet; skip them instead of failing whole panel.
+            continue
+
+    return {
+        "symbol": symbol,
+        "expiry": resolved_expiry,
+        "atm_strike": atm,
+        "fundamentals": {
+            "prev_close": prev_close,
+            "open": day_open,
+            "high": day_high,
+            "low": day_low,
+            "spot": spot,
+            "day_change": day_change,
+            "day_change_pct": day_change_pct,
+        },
+        "option_chain": chain_rows,
+        "asof": now.isoformat(timespec="seconds"),
+    }

@@ -88,6 +88,21 @@
   .sidePick button.on.pe{background:#fdeeee;color:#9f2a23;border-color:#d7726c}
   .meter{height:5px;border-radius:999px;background:#dde6f0;overflow:hidden;margin-top:5px}
   .meter i{display:block;height:100%;width:50%;background:var(--green)}
+  .miniGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  @media(max-width:900px){.miniGrid{grid-template-columns:1fr}}
+  .miniTable{width:100%;border-collapse:collapse;margin-top:8px}
+  .miniTable th,.miniTable td{padding:6px 7px;border-bottom:1px solid #dce4ee;font-size:12px;text-align:right}
+  .miniTable th{color:var(--dim);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+  .miniTable td:first-child,.miniTable th:first-child{text-align:center}
+  .miniTable tr:last-child td{border-bottom:0}
+  .miniTable td.pos{color:var(--green);font-weight:700}
+  .miniTable td.neg{color:var(--red);font-weight:700}
+  .fundGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .fundCard{border:1px solid var(--line);border-radius:8px;padding:10px;background:#f7fafe}
+  .fundCard b{display:block;color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+  .fundCard span{font-family:var(--disp);font-size:22px;font-weight:800;color:var(--txt)}
+  .fundCard span.pos{color:var(--green)}
+  .fundCard span.neg{color:var(--red)}
 </style>
 </head>
 <body>
@@ -115,6 +130,17 @@
   </div>
 
   <div class="banner" id="killBanner">⚠ KILL SWITCH ACTIVE — <span id="killReason"></span></div>
+
+  <div class="miniGrid">
+    <div class="panel">
+      <h2>Option Chain <span id="chainMeta" style="color:var(--dim)">—</span></h2>
+      <div id="chainBox" class="muted">Loading option chain…</div>
+    </div>
+    <div class="panel">
+      <h2>Fundamentals <span id="fundMeta" style="color:var(--dim)">—</span></h2>
+      <div id="fundBox" class="muted">Loading fundamentals…</div>
+    </div>
+  </div>
 
   <div class="grid">
     <!-- LEFT: order ticket -->
@@ -204,6 +230,7 @@ let chartLoaded = false;
 let adviceSide = 'CE';
 let latestSetup = null;
 let expiryCache = [];
+let latestOverview = null;
 
 const $ = id => document.getElementById(id);
 function log(msg){ const l=$('log'); l.innerHTML = `<div><b>${new Date().toLocaleTimeString()}</b> ${msg}</div>` + l.innerHTML; }
@@ -407,6 +434,64 @@ function fmtPct(n){
   return n == null || Number.isNaN(Number(n)) ? '—' : Number(n).toFixed(2)+'%';
 }
 
+function fmtMoney(n){
+  return n == null || Number.isNaN(Number(n)) ? '—' : '₹'+Number(n).toFixed(2);
+}
+
+function renderOverview(overview){
+  latestOverview = overview;
+  const chain = overview.option_chain || [];
+  const f = overview.fundamentals || {};
+  $('chainMeta').textContent = `${overview.symbol} · ${overview.expiry}`;
+  $('fundMeta').textContent = `ATM ${overview.atm_strike}`;
+
+  if(!chain.length){
+    $('chainBox').innerHTML = '<p class="muted">No option chain rows available.</p>';
+  }else{
+    $('chainBox').innerHTML = `
+      <table class="miniTable">
+        <thead><tr><th>CE LTP</th><th>Strike</th><th>PE LTP</th><th>Spread</th></tr></thead>
+        <tbody>
+          ${chain.map(row => `
+            <tr>
+              <td class="pos">${fmtMoney(row.ce_ltp)}</td>
+              <td>${row.strike}</td>
+              <td class="neg">${fmtMoney(row.pe_ltp)}</td>
+              <td>${fmtMoney(row.spread)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  const dc = Number(f.day_change || 0);
+  const dcClass = dc >= 0 ? 'pos' : 'neg';
+  $('fundBox').innerHTML = `
+    <div class="fundGrid">
+      <div class="fundCard"><b>Prev Close</b><span>${fmtMoney(f.prev_close)}</span></div>
+      <div class="fundCard"><b>Open</b><span>${fmtMoney(f.open)}</span></div>
+      <div class="fundCard"><b>High</b><span>${fmtMoney(f.high)}</span></div>
+      <div class="fundCard"><b>Low</b><span>${fmtMoney(f.low)}</span></div>
+      <div class="fundCard"><b>Spot</b><span>${fmtMoney(f.spot)}</span></div>
+      <div class="fundCard"><b>Day Change</b><span class="${dcClass}">${fmtMoney(dc)} (${fmtPct(f.day_change_pct)})</span></div>
+    </div>
+    <div class="muted">asof ${overview.asof || '—'}</div>`;
+}
+
+async function refreshOverview(){
+  try{
+    await ensureValidExpiry({silent:true});
+    const symbol = $('symbol').value || 'NIFTY';
+    const expiry = $('expiry').value.trim().toUpperCase();
+    const query = new URLSearchParams({symbol});
+    if(expiry) query.set('expiry', expiry);
+    const d = await api('/market/overview?'+query.toString());
+    renderOverview(d);
+  }catch(e){
+    $('chainBox').innerHTML = `<p class="muted">⚠ ${e.message}</p>`;
+    $('fundBox').innerHTML = `<p class="muted">⚠ ${e.message}</p>`;
+  }
+}
+
 function trendScore(setup){
   const trend = setup?.indicators?.trend || 'sideways';
   const m5 = setup?.momentum?.m5?.delta_pct;
@@ -500,6 +585,7 @@ async function boot(){
   }catch(e){
     log('⚠ Expiry load failed: '+e.message);
   }
+  await refreshOverview();
   refreshRisk();
 }
 
@@ -617,7 +703,7 @@ async function squareoff(){
 }
 
 loadNiftyChart();
-boot(); setInterval(refreshRisk, 5000);
+boot(); setInterval(refreshRisk, 5000); setInterval(refreshOverview, 30000);
 </script>
 </body>
 </html>
