@@ -104,7 +104,7 @@ class AngelClient:
                 }
         raise LookupError(
             f"No instrument for {symbol} {expiry} {strike} {opt_type}. "
-            "Check expiry format (e.g. 29MAY2025) and strike."
+            "Use an upcoming expiry from /market/expiries and an available strike."
         )
 
     def option_expiries(self, symbol: str = "NIFTY", limit: int = 8) -> list[str]:

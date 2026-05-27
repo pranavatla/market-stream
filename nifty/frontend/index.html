@@ -122,7 +122,7 @@
       <h2>Order Ticket</h2>
       <div class="row">
         <div><label>Symbol</label><input id="symbol" value="NIFTY"></div>
-        <div><label>Expiry (e.g. 29MAY2025)</label><input id="expiry" placeholder="29MAY2025"></div>
+        <div><label>Expiry</label><input id="expiry" placeholder="auto-filled"></div>
       </div>
       <div class="row">
         <div><label>Strike</label><input id="strike" type="number" placeholder="24500"></div>
@@ -203,6 +203,7 @@ let isLoggedIn = false;
 let chartLoaded = false;
 let adviceSide = 'CE';
 let latestSetup = null;
+let expiryCache = [];
 
 const $ = id => document.getElementById(id);
 function log(msg){ const l=$('log'); l.innerHTML = `<div><b>${new Date().toLocaleTimeString()}</b> ${msg}</div>` + l.innerHTML; }
@@ -349,6 +350,35 @@ function setThesis(text){
   $('thesis').value = text;
 }
 
+async function refreshExpiries({silent=false} = {}){
+  const symbol = $('symbol').value || 'NIFTY';
+  const d = await api('/market/expiries?symbol='+encodeURIComponent(symbol));
+  expiryCache = d.expiries || [];
+  return expiryCache;
+}
+
+async function ensureValidExpiry({silent=false} = {}){
+  if(!expiryCache.length){
+    await refreshExpiries({silent});
+  }
+  const current = $('expiry').value.trim().toUpperCase();
+  const next = expiryCache[0];
+  if(!next){
+    if(!silent) log('No upcoming expiry found.');
+    return '';
+  }
+  if(!current || !expiryCache.includes(current)){
+    $('expiry').value = next;
+    latestSetup = null;
+    prepared = null;
+    $('quoteBox').style.display='none';
+    if(!silent) log(`Expiry corrected to ${next}`);
+    return next;
+  }
+  $('expiry').value = current;
+  return current;
+}
+
 function fmtNum(n, places=2){
   return n == null || Number.isNaN(Number(n)) ? '—' : Number(n).toFixed(places);
 }
@@ -393,12 +423,13 @@ function renderSetup(setup){
 }
 
 async function loadSetup(){
-  if(!$('expiry').value.trim() || !Number($('strike').value)){
-    $('setupBox').innerHTML='<p class="muted">Enter expiry and strike, then refresh setup.</p>';
-    return;
-  }
   $('setupBox').innerHTML='<p class="muted">loading setup…</p>';
   try{
+    await ensureValidExpiry();
+    if(!Number($('strike').value)){
+      $('setupBox').innerHTML='<p class="muted">Set a strike, then refresh setup.</p>';
+      return;
+    }
     const s = await api('/market/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(setupReq())});
     renderSetup(s);
     log('Setup refreshed.');
@@ -419,14 +450,17 @@ async function useAtmStrike(){
 
 async function useNextExpiry(){
   try{
-    const d = await api('/market/expiries?symbol='+encodeURIComponent($('symbol').value || 'NIFTY'));
-    const expiry = (d.expiries || [])[0];
+    const expiries = await refreshExpiries();
+    const expiry = expiries[0];
     if(!expiry){
       log('No upcoming expiry found.');
       return;
     }
-    $('expiry').value = expiry;
     log('Expiry set to '+expiry);
+    $('expiry').value = expiry;
+    latestSetup = null;
+    prepared = null;
+    $('quoteBox').style.display='none';
   }catch(e){ log('⚠ '+e.message); }
 }
 
@@ -441,6 +475,11 @@ async function boot(){
     $('loginBtn').textContent = h.logged_in ? 'Logged In' : 'Login';
     $('loginBtn').disabled = h.logged_in;
   }catch(e){ log('⚠ '+e.message); }
+  try{
+    await ensureValidExpiry({silent:true});
+  }catch(e){
+    log('⚠ Expiry load failed: '+e.message);
+  }
   refreshRisk();
 }
 
@@ -468,6 +507,7 @@ async function login(){
 
 async function quote(opt){
   try{
+    await ensureValidExpiry();
     const q = await api('/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ref(opt))});
     $('quoteBox').style.display='block';
     $('ltp').firstChild.textContent = '₹'+q.ltp.toFixed(2)+' ';
@@ -507,6 +547,7 @@ async function execOrder(){
 async function analyze(){
   $('advBox').innerHTML='<p class="muted">thinking…</p>';
   try{
+    await ensureValidExpiry();
     if(!latestSetup) await loadSetup();
     // Auto-advisory: uses live candle + quote data from SmartAPI (requires Login).
     const req = {
