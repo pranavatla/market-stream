@@ -74,6 +74,7 @@
   .chartBox{height:560px;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--bg);position:relative}
   @media(max-width:760px){.chartBox{height:420px}}
   .chartErr{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);padding:18px;text-align:center;line-height:1.6}
+  .chartLoad{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;z-index:1}
 </style>
 </head>
 <body>
@@ -95,7 +96,9 @@
     <div class="chartHead">
       <div class="chartTitle">Live NIFTY 50 Chart (Last 2D · IST)</div>
     </div>
-    <div class="chartBox" id="tvChart" style="display:block"></div>
+    <div class="chartBox" id="tvChart" style="display:block">
+    <div class="chartLoad" id="chartLoad">Loading NIFTY 50 candles…</div>
+  </div>
   </div>
 
   <div class="banner" id="killBanner">⚠ KILL SWITCH ACTIVE — <span id="killReason"></span></div>
@@ -231,11 +234,21 @@ function loadTradingViewChart(){
   });
 
   async function refresh(){
+    const loader = $('chartLoad');
     try{
       const d = await api('/market/nifty/candles?hours=48');
-      series.setData(d.candles || []);
+      const candles = d.candles || [];
+      if(candles.length === 0){
+        if(loader) loader.textContent = 'No candle data yet. Market may be closed.';
+        return;
+      }
+      series.setData(candles);
+      if(loader) loader.style.display = 'none';
+      chart.timeScale().fitContent();
     }catch(e){
-      el.innerHTML = `<div class="chartErr">Chart data error: ${String(e.message||e)}</div>`;
+      const msg = String(e.message||e);
+      if(loader) loader.style.display = 'none';
+      el.innerHTML = `<div class="chartErr">Chart data error: ${msg}<br><small style="opacity:.7">Check Angel login or market hours</small></div>`;
     }
   }
   refresh();
