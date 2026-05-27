@@ -135,6 +135,59 @@ class AutoAdviceReq(BaseModel):
     thesis: str = ""
 
 
+class SetupReq(BaseModel):
+    symbol: str = "NIFTY"
+    expiry: str
+    strike: int
+
+
+@app.post("/market/setup")
+def market_setup(req: SetupReq):
+    """
+    Factual setup snapshot for the console. No order placement and no advisory text.
+    """
+    if angel.session is None:
+        raise HTTPException(400, "Not logged in. Click Login first.")
+    snap = market.nifty_spot_snapshot()
+    pair = market.option_pair_snapshot(symbol=req.symbol, expiry=req.expiry, strike=req.strike)
+    return {
+        "spot": snap["spot"],
+        "range_24h": snap["range_24h"],
+        "momentum": snap.get("momentum"),
+        "spot_levels": snap.get("spot_levels"),
+        "indicators": snap["indicators"],
+        "candles_1m_count": snap.get("candles_1m_count"),
+        "asof": snap.get("asof"),
+        "options": {
+            "ce": {
+                "ltp": pair["ce"]["ltp"],
+                "symbol": pair["ce"]["instrument"]["tradingsymbol"],
+                "lotsize": pair["ce"]["instrument"]["lotsize"],
+            },
+            "pe": {
+                "ltp": pair["pe"]["ltp"],
+                "symbol": pair["pe"]["instrument"]["tradingsymbol"],
+                "lotsize": pair["pe"]["instrument"]["lotsize"],
+            },
+            "premium_spread": pair["premium_spread"],
+        },
+    }
+
+
+@app.get("/market/spot")
+def market_spot():
+    if angel.session is None:
+        raise HTTPException(400, "Not logged in. Click Login first.")
+    snap = market.nifty_spot_snapshot()
+    return {
+        "spot": snap["spot"],
+        "range_24h": snap["range_24h"],
+        "momentum": snap.get("momentum"),
+        "indicators": snap["indicators"],
+        "asof": snap.get("asof"),
+    }
+
+
 @app.post("/advisory/auto")
 def advisory_auto(req: AutoAdviceReq):
     """

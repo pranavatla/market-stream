@@ -75,6 +75,19 @@
   @media(max-width:760px){.chartBox{height:420px}}
   .chartErr{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);padding:18px;text-align:center;line-height:1.6}
   .chartLoad{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;z-index:1}
+  .chipRow{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .chip{width:auto;padding:6px 8px;font-size:10px;text-transform:none;letter-spacing:0;color:var(--dim)}
+  .chip:hover,.chip.on{border-color:var(--green);color:var(--green)}
+  .setupGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .setupCard{border:1px solid var(--line);border-radius:8px;padding:9px;background:rgba(10,14,13,.55)}
+  .setupCard b{display:block;color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+  .setupCard span{font-family:var(--disp);font-size:20px;font-weight:800}
+  .setupCard small{display:block;color:var(--dim);font-size:10px;margin-top:2px}
+  .sidePick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .sidePick button.on.ce{background:rgba(47,210,122,.14);color:var(--green);border-color:var(--green)}
+  .sidePick button.on.pe{background:rgba(255,90,82,.14);color:var(--red);border-color:var(--red)}
+  .meter{height:5px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:5px}
+  .meter i{display:block;height:100%;width:50%;background:var(--green)}
 </style>
 </head>
 <body>
@@ -131,12 +144,27 @@
 
     <!-- RIGHT: advisory -->
     <div class="panel">
-      <h2>Claude Advisory <span style="color:var(--dim)">second opinion</span></h2>
+      <h2>Entry Console <span style="color:var(--dim)">setup tools</span></h2>
+      <div class="row">
+        <button onclick="loadSetup()">Refresh Setup</button>
+        <button onclick="useAtmStrike()">Use ATM Strike</button>
+      </div>
+      <div class="sidePick">
+        <button class="ce on" id="sideCE" onclick="setAdviceSide('CE')">Analyze CE</button>
+        <button class="pe" id="sidePE" onclick="setAdviceSide('PE')">Analyze PE</button>
+      </div>
+      <div id="setupBox"></div>
       <label>Your thesis (one line)</label>
       <input id="thesis" placeholder="breakout above 24550 on volume">
-      <button style="width:100%;margin-top:12px" onclick="analyze()">Run Advisory</button>
+      <div class="chipRow">
+        <button class="chip" onclick="setThesis('breakout above key level with follow-through')">breakout</button>
+        <button class="chip" onclick="setThesis('pullback to VWAP holding with reversal candle')">pullback</button>
+        <button class="chip" onclick="setThesis('rejection from resistance with weak momentum')">rejection</button>
+        <button class="chip" onclick="setThesis('range compression before expansion')">compression</button>
+      </div>
+      <button style="width:100%;margin-top:8px" onclick="analyze()">Build Trade Plan</button>
       <div id="advBox"></div>
-      <p class="muted">Advisory is a risk review, not a buy signal. The decision is yours.</p>
+      <p class="muted">This panel reviews context only. Orders still go through quote, prepare, and confirm.</p>
     </div>
 
     <!-- prepared order confirm -->
@@ -172,6 +200,8 @@ let prepared = null;
 let traderTokenRequired = false;
 let isLoggedIn = false;
 let chartLoaded = false;
+let adviceSide = 'CE';
+let latestSetup = null;
 
 const $ = id => document.getElementById(id);
 function log(msg){ const l=$('log'); l.innerHTML = `<div><b>${new Date().toLocaleTimeString()}</b> ${msg}</div>` + l.innerHTML; }
@@ -300,6 +330,92 @@ async function apiLive(path, opts){
 function ref(opt){ return {symbol:$('symbol').value, expiry:$('expiry').value.toUpperCase(),
   strike:Number($('strike').value), opt_type:opt}; }
 
+function setupReq(){
+  return {
+    symbol: $('symbol').value || 'NIFTY',
+    expiry: $('expiry').value.toUpperCase(),
+    strike: Number($('strike').value)
+  };
+}
+
+function setAdviceSide(side){
+  adviceSide = side;
+  $('sideCE').classList.toggle('on', side === 'CE');
+  $('sidePE').classList.toggle('on', side === 'PE');
+}
+
+function setThesis(text){
+  $('thesis').value = text;
+}
+
+function fmtNum(n, places=2){
+  return n == null || Number.isNaN(Number(n)) ? '—' : Number(n).toFixed(places);
+}
+
+function fmtPct(n){
+  return n == null || Number.isNaN(Number(n)) ? '—' : Number(n).toFixed(2)+'%';
+}
+
+function trendScore(setup){
+  const trend = setup?.indicators?.trend || 'sideways';
+  const m5 = setup?.momentum?.m5?.delta_pct;
+  const m15 = setup?.momentum?.m15?.delta_pct;
+  let score = 50;
+  if(trend === 'up') score += 18;
+  if(trend === 'down') score -= 18;
+  if(m5 != null) score += Math.max(-12, Math.min(12, m5 * 12));
+  if(m15 != null) score += Math.max(-12, Math.min(12, m15 * 8));
+  return Math.max(5, Math.min(95, score));
+}
+
+function renderSetup(setup){
+  latestSetup = setup;
+  const ce = setup.options?.ce || {};
+  const pe = setup.options?.pe || {};
+  const score = trendScore(setup);
+  const rsi = setup.indicators?.rsi14;
+  const vsVwap = setup.spot_levels?.vs_vwap;
+  const m5 = setup.momentum?.m5?.delta_pct;
+  const m15 = setup.momentum?.m15?.delta_pct;
+  $('setupBox').innerHTML = `
+    <div class="setupGrid">
+      <div class="setupCard"><b>Spot</b><span>₹${fmtNum(setup.spot)}</span><small>${setup.indicators?.trend || 'sideways'} trend</small></div>
+      <div class="setupCard"><b>CE / PE</b><span>₹${fmtNum(ce.ltp)} / ₹${fmtNum(pe.ltp)}</span><small>spread ${fmtNum(setup.options?.premium_spread)}</small></div>
+      <div class="setupCard"><b>Momentum</b><span>${fmtPct(m5)}</span><small>15m ${fmtPct(m15)}</small></div>
+      <div class="setupCard"><b>VWAP / RSI</b><span>${fmtNum(vsVwap)}</span><small>RSI ${fmtNum(rsi,1)}</small></div>
+    </div>
+    <div class="setupCard" style="margin-top:8px">
+      <b>Direction Pressure</b><span>${score.toFixed(0)} / 100</span>
+      <div class="meter"><i style="width:${score}%"></i></div>
+      <small>${setup.asof || ''}</small>
+    </div>`;
+}
+
+async function loadSetup(){
+  if(!$('expiry').value.trim() || !Number($('strike').value)){
+    $('setupBox').innerHTML='<p class="muted">Enter expiry and strike, then refresh setup.</p>';
+    return;
+  }
+  $('setupBox').innerHTML='<p class="muted">loading setup…</p>';
+  try{
+    const s = await api('/market/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(setupReq())});
+    renderSetup(s);
+    log('Setup refreshed.');
+  }catch(e){
+    $('setupBox').innerHTML=`<p class="muted">⚠ ${e.message}</p>`;
+  }
+}
+
+async function useAtmStrike(){
+  try{
+    const s = latestSetup || await api('/market/spot');
+    const spot = s?.spot;
+    if(!spot){ return; }
+    $('strike').value = Math.round(spot / 50) * 50;
+    log('ATM strike set to '+$('strike').value);
+  }catch(e){ log('⚠ '+e.message); }
+}
+
 async function boot(){
   try{ const h=await api('/health'); $('conn').classList.toggle('on',h.logged_in);
     $('connTxt').textContent = h.logged_in?'connected':'not logged in';
@@ -377,12 +493,13 @@ async function execOrder(){
 async function analyze(){
   $('advBox').innerHTML='<p class="muted">thinking…</p>';
   try{
+    if(!latestSetup) await loadSetup();
     // Auto-advisory: uses live candle + quote data from SmartAPI (requires Login).
     const req = {
       symbol: $('symbol').value || 'NIFTY',
       expiry: $('expiry').value.toUpperCase(),
       strike: Number($('strike').value),
-      opt_type: (prepared && prepared.opt_type) ? prepared.opt_type : 'CE',
+      opt_type: (prepared && prepared.opt_type) ? prepared.opt_type : adviceSide,
       thesis: $('thesis').value || ''
     };
     const a=await api('/advisory/auto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(req)});
@@ -401,7 +518,7 @@ async function analyze(){
     $('advBox').innerHTML=`<div class="verdict ${v}">
       <span class="tag">${v}</span> — ${a.one_liner||''}
       ${facts}
-      <ul>${(a.supports||[]).map(s=>`<li>${s}</li>`).join('')}${(a.against||[]).map(s=>`<li class="bad">${s}</li>`).join('')}</ul>
+      <ul>${(a.supports||[]).map(s=>`<li>${s}</li>`).join('')}${(a.against||[]).map(s=>`<li class="bad">${s}</li>`).join('')}${(a.entry_checks||[]).map(s=>`<li>${s}</li>`).join('')}${(a.checklist||[]).map(s=>`<li>${s}</li>`).join('')}</ul>
       <p class="muted">${a.theta_iv_note||''}</p></div>`;
   }catch(e){ $('advBox').innerHTML=`<p class="muted">⚠ ${e.message}</p>`; }
 }
