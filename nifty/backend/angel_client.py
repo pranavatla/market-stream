@@ -107,6 +107,23 @@ class AngelClient:
             "Check expiry format (e.g. 29MAY2025) and strike."
         )
 
+    def option_expiries(self, symbol: str = "NIFTY", limit: int = 8) -> list[str]:
+        self._ensure_instruments()
+        today = datetime.now().date()
+        expiries: set[str] = set()
+        for ins in self._instruments:
+            if ins.get("name") == symbol and ins.get("exch_seg") == "NFO" and ins.get("expiry"):
+                expiries.add(ins["expiry"])
+
+        def _sort_key(expiry: str):
+            try:
+                return datetime.strptime(expiry, "%d%b%Y").date()
+            except ValueError:
+                return datetime.max.date()
+
+        upcoming = [expiry for expiry in expiries if _sort_key(expiry) >= today]
+        return sorted(upcoming, key=_sort_key)[:limit]
+
     def ltp(self, exchange: str, tradingsymbol: str, token: str) -> float:
         self.require_session()
         r = self.smart.ltpData(exchange, tradingsymbol, token)

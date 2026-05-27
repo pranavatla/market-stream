@@ -145,9 +145,10 @@
     <!-- RIGHT: advisory -->
     <div class="panel">
       <h2>Entry Console <span style="color:var(--dim)">setup tools</span></h2>
-      <div class="row">
+      <div class="row3">
         <button onclick="loadSetup()">Refresh Setup</button>
         <button onclick="useAtmStrike()">Use ATM Strike</button>
+        <button onclick="useNextExpiry()">Next Expiry</button>
       </div>
       <div class="sidePick">
         <button class="ce on" id="sideCE" onclick="setAdviceSide('CE')">Analyze CE</button>
@@ -216,7 +217,7 @@ function _renderLive(){
   $('live').textContent = tok ? 'live: unlocked' : 'live: locked';
 }
 
-function loadTradingViewChart(){
+function loadNiftyChart(){
   const el = $('tvChart');
   function showChartError(reason){
     el.innerHTML = `<div class="chartErr">NIFTY chart unavailable: ${reason}</div>`;
@@ -416,6 +417,19 @@ async function useAtmStrike(){
   }catch(e){ log('⚠ '+e.message); }
 }
 
+async function useNextExpiry(){
+  try{
+    const d = await api('/market/expiries?symbol='+encodeURIComponent($('symbol').value || 'NIFTY'));
+    const expiry = (d.expiries || [])[0];
+    if(!expiry){
+      log('No upcoming expiry found.');
+      return;
+    }
+    $('expiry').value = expiry;
+    log('Expiry set to '+expiry);
+  }catch(e){ log('⚠ '+e.message); }
+}
+
 async function boot(){
   try{ const h=await api('/health'); $('conn').classList.toggle('on',h.logged_in);
     $('connTxt').textContent = h.logged_in?'connected':'not logged in';
@@ -541,7 +555,7 @@ async function squareoff(){
   await apiLive('/squareoff?execute=true',{method:'POST'}); log('Square-off sent.'); refreshRisk();
 }
 
-loadTradingViewChart();
+loadNiftyChart();
 boot(); setInterval(refreshRisk, 5000);
 </script>
 </body>

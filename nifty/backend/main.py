@@ -3,7 +3,7 @@ FastAPI backend tying it together.
 
 Flow for a trade (manual mode):
   1. POST /quote        -> see strike LTP
-  2. POST /analyze      -> Claude advisory read (optional)
+  2. POST /analyze      -> advisory read (optional)
   3. POST /order/prepare-> dry-run, returns the exact order + risk verdict
   4. POST /order/execute-> actually sends it (only after you confirm)
 
@@ -148,6 +148,12 @@ class SetupReq(BaseModel):
     symbol: str = "NIFTY"
     expiry: str
     strike: int
+
+
+@app.get("/market/expiries")
+def market_expiries(symbol: str = "NIFTY"):
+    _ensure_market_session()
+    return {"symbol": symbol, "expiries": angel.option_expiries(symbol)}
 
 
 @app.post("/market/setup")
