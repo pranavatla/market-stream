@@ -250,23 +250,38 @@ def _momentum(closes: list[float], minutes: int) -> dict:
     return {"delta": float(d), "delta_pct": float(pct)}
 
 
-_CANDLE_CACHE: dict[int, dict] = {}
+_CANDLE_CACHE: dict[tuple[str, int], dict] = {}
 
 
-def nifty_candles_1m(hours: int = 24) -> dict:
+def _today_session_start(now: datetime) -> datetime:
+    start = now.replace(hour=9, minute=15, second=0, microsecond=0)
+    if now >= start:
+        return start
+    # Before open, show previous session window anchor.
+    return (now - timedelta(days=1)).replace(hour=9, minute=15, second=0, microsecond=0)
+
+
+def nifty_candles_1m(hours: int = 24, session: str = "rolling") -> dict:
     """
     Returns last `hours` of 1m candles for NIFTY 50 spot with a small cache
     to avoid hammering historical API.
     """
     angel.require_session()
     now = _ist_now()
-    cached = _CANDLE_CACHE.get(hours)
+    mode = (session or "rolling").strip().lower()
+    cache_key = (mode, int(hours))
+    cached = _CANDLE_CACHE.get(cache_key)
     cached_at: datetime | None = cached["at"] if cached else None
     if cached_at and (now - cached_at) < timedelta(seconds=25):
         return cached["data"]
 
     idx = angel.resolve_nifty_index()
-    start = now - timedelta(hours=hours + 24)  # padding for gaps
+    if mode == "today":
+        session_start = _today_session_start(now)
+        start = session_start - timedelta(minutes=45)  # small pad for API timestamp quirks
+    else:
+        session_start = now - timedelta(hours=hours)
+        start = now - timedelta(hours=hours + 24)  # padding for gaps
     rows = angel.candles(
         exchange="NSE",
         token=idx["token"],
@@ -275,7 +290,7 @@ def nifty_candles_1m(hours: int = 24) -> dict:
         todate=_fmt(now),
     )
     candles = _to_candles(rows)
-    cutoff = now - timedelta(hours=hours)
+    cutoff = session_start
     tail: list[Candle] = []
     cutoff_ist = _as_aware_ist(cutoff)
     for c in candles:
@@ -293,5 +308,5 @@ def nifty_candles_1m(hours: int = 24) -> dict:
         for c in tail
     ]
     out = {"instrument": idx, "candles": series, "asof": now.isoformat(timespec="seconds")}
-    _CANDLE_CACHE[hours] = {"at": now, "data": out}
+    _CANDLE_CACHE[cache_key] = {"at": now, "data": out}
     return out

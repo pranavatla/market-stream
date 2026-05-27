@@ -255,10 +255,10 @@ def advisory_auto(req: AutoAdviceReq):
 
 
 @app.get("/market/nifty/candles")
-def market_nifty_candles(hours: int = 24):
+def market_nifty_candles(hours: int = 24, session: str = "rolling"):
     # Chart should render even before explicit Login. We only use this for market data.
     _ensure_market_session()
-    return market.nifty_candles_1m(hours=hours)
+    return market.nifty_candles_1m(hours=hours, session=session)
 
 
 @app.post("/order/prepare")

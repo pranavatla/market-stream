@@ -107,7 +107,7 @@
 
   <div class="chartWrap" id="chartWrap" style="display:block;margin-bottom:14px">
     <div class="chartHead">
-      <div class="chartTitle">Live NIFTY 50 Chart (Last 2D · IST)</div>
+      <div class="chartTitle">Live NIFTY 50 Chart</div>
     </div>
     <div class="chartBox" id="tvChart" style="display:block">
     <div class="chartLoad" id="chartLoad">Loading NIFTY 50 candles…</div>
@@ -220,6 +220,7 @@ function _renderLive(){
 
 function loadNiftyChart(){
   const el = $('tvChart');
+  let hasInitialFit = false;
   function showChartError(reason){
     el.innerHTML = `<div class="chartErr">NIFTY chart unavailable: ${reason}</div>`;
     log('Chart unavailable: '+reason);
@@ -255,7 +256,11 @@ function loadNiftyChart(){
     height: el.clientHeight,
     layout: { background: { type: 'solid', color: '#ffffff' }, textColor: '#23364f' },
     grid: { vertLines: { color: '#e2e9f2' }, horzLines: { color: '#e2e9f2' } },
-    timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 2 },
+    timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 2, borderColor: '#9fb0c8' },
+    rightPriceScale: { borderColor: '#9fb0c8' },
+    leftPriceScale: { visible: false },
+    handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+    handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
     crosshair: { mode: 0 },
     localization: { locale: 'en-IN', timeFormatter: formatIst },
   });
@@ -278,15 +283,21 @@ function loadNiftyChart(){
   async function refresh(){
     const loader = $('chartLoad');
     try{
-      const d = await api('/market/nifty/candles?hours=48');
+      const d = await api('/market/nifty/candles?session=today');
       const candles = d.candles || [];
       if(candles.length === 0){
         showChartError('SmartAPI returned no NIFTY candles');
         return;
       }
+      const prevRange = chart.timeScale().getVisibleLogicalRange();
       series.setData(candles);
       if(loader) loader.style.display = 'none';
-      chart.timeScale().fitContent();
+      if(!hasInitialFit){
+        chart.timeScale().fitContent();
+        hasInitialFit = true;
+      } else if(prevRange){
+        chart.timeScale().setVisibleLogicalRange(prevRange);
+      }
     }catch(e){
       showChartError(String(e.message||e));
     }
