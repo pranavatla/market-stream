@@ -308,8 +308,13 @@ def advisory_stats():
 @app.get("/market/nifty/candles")
 def market_nifty_candles(hours: int = 24, session: str = "rolling"):
     # Chart should render even before explicit Login. We only use this for market data.
-    _ensure_market_session()
-    return market.nifty_candles_1m(hours=hours, session=session)
+    try:
+        _ensure_market_session()
+        return market.nifty_candles_1m(hours=hours, session=session)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Candle feed failed: {e}")
 
 
 @app.post("/order/prepare")

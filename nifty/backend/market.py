@@ -251,6 +251,7 @@ def _momentum(closes: list[float], minutes: int) -> dict:
 
 
 _CANDLE_CACHE: dict[tuple[str, int], dict] = {}
+_LAST_GOOD_CANDLES: dict | None = None
 
 
 def _today_session_start(now: datetime) -> datetime:
@@ -266,6 +267,7 @@ def nifty_candles_1m(hours: int = 24, session: str = "rolling") -> dict:
     Returns last `hours` of 1m candles for NIFTY 50 spot with a small cache
     to avoid hammering historical API.
     """
+    global _LAST_GOOD_CANDLES
     angel.require_session()
     now = _ist_now()
     mode = (session or "rolling").strip().lower()
@@ -275,41 +277,54 @@ def nifty_candles_1m(hours: int = 24, session: str = "rolling") -> dict:
     if cached_at and (now - cached_at) < timedelta(seconds=25):
         return cached["data"]
 
-    idx = angel.resolve_nifty_index()
-    if mode == "today":
-        session_start = _today_session_start(now)
-        start = session_start - timedelta(minutes=45)  # small pad for API timestamp quirks
-    else:
-        session_start = now - timedelta(hours=hours)
-        start = now - timedelta(hours=hours + 24)  # padding for gaps
-    rows = angel.candles(
-        exchange="NSE",
-        token=idx["token"],
-        interval="ONE_MINUTE",
-        fromdate=_fmt(start),
-        todate=_fmt(now),
-    )
-    candles = _to_candles(rows)
-    cutoff = session_start
-    tail: list[Candle] = []
-    cutoff_ist = _as_aware_ist(cutoff)
-    for c in candles:
-        if _as_aware_ist(c.ts) >= cutoff_ist:
-            tail.append(c)
-    # Build lightweight-charts format (epoch seconds).
-    series = [
-        {
-            "time": int(_as_aware_ist(c.ts).astimezone(timezone.utc).timestamp()),
-            "open": c.o,
-            "high": c.h,
-            "low": c.l,
-            "close": c.c,
-        }
-        for c in tail
-    ]
-    out = {"instrument": idx, "candles": series, "asof": now.isoformat(timespec="seconds")}
-    _CANDLE_CACHE[cache_key] = {"at": now, "data": out}
-    return out
+    try:
+        idx = angel.resolve_nifty_index()
+        if mode == "today":
+            session_start = _today_session_start(now)
+            start = session_start - timedelta(minutes=45)  # small pad for API timestamp quirks
+        else:
+            session_start = now - timedelta(hours=hours)
+            start = now - timedelta(hours=hours + 24)  # padding for gaps
+        rows = angel.candles(
+            exchange="NSE",
+            token=idx["token"],
+            interval="ONE_MINUTE",
+            fromdate=_fmt(start),
+            todate=_fmt(now),
+        )
+        candles = _to_candles(rows)
+        cutoff = session_start
+        tail: list[Candle] = []
+        cutoff_ist = _as_aware_ist(cutoff)
+        for c in candles:
+            if _as_aware_ist(c.ts) >= cutoff_ist:
+                tail.append(c)
+        series = [
+            {
+                "time": int(_as_aware_ist(c.ts).astimezone(timezone.utc).timestamp()),
+                "open": c.o,
+                "high": c.h,
+                "low": c.l,
+                "close": c.c,
+            }
+            for c in tail
+        ]
+        out = {"instrument": idx, "candles": series, "asof": now.isoformat(timespec="seconds")}
+        _CANDLE_CACHE[cache_key] = {"at": now, "data": out}
+        _LAST_GOOD_CANDLES = out
+        return out
+    except Exception as e:
+        if cached and cached.get("data"):
+            stale = dict(cached["data"])
+            stale["stale"] = True
+            stale["error"] = str(e)
+            return stale
+        if _LAST_GOOD_CANDLES:
+            stale = dict(_LAST_GOOD_CANDLES)
+            stale["stale"] = True
+            stale["error"] = str(e)
+            return stale
+        raise
 
 
 def nifty_market_overview(
