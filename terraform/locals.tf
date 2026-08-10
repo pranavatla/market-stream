@@ -57,8 +57,18 @@ locals {
     },
   )
 
-  # Sensitive env vars — separated so they can use ECS secrets in prod
-  container_secrets = var.database.enabled ? {
-    DB_PASSWORD = local.db_config.password
-  } : {}
+  # Sensitive env vars. The ECS module consumes only the KEYS of this map and
+  # turns each into a Secrets Manager `valueFrom` reference; the values here
+  # are what the secrets module writes into the secret document.
+  container_secrets = merge(
+    var.database.enabled ? {
+      DB_PASSWORD = local.db_config.password
+    } : {},
+    {
+      ANGELONE_CLIENT_ID   = var.angelone_credentials.client_id
+      ANGELONE_API_KEY     = var.angelone_credentials.api_key
+      ANGELONE_TOTP_SECRET = var.angelone_credentials.totp_secret
+      ANGELONE_PIN         = var.angelone_credentials.pin
+    },
+  )
 }

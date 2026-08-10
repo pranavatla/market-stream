@@ -1,19 +1,98 @@
-# Terraform
-terraform/.terraform/
-terraform/*.tfstate
-terraform/*.tfstate.backup
-terraform/terraform.tfvars
-terraform/.terraform.lock.hcl
-terraform/tfplan
+# =============================================================================
+# TERRAFORM
+# =============================================================================
+# Plan files are ZIP bundles that embed tfconfig/, tfplan, AND a full copy of
+# tfstate — so they smuggle state (and any sensitive variable values) past the
+# *.tfstate rule below. Treat them as secrets.
+*.tfplan
+*tfplan*
 
-# Python
+# State — contains resource attributes in plaintext (RDS passwords, etc.)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Variable files carry credentials. Keep .example templates.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Provider plugins / working dirs, at any depth
+**/.terraform/
+
+# Local CLI config and overrides
+.terraformrc
+terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform crash dumps can contain variable values
+crash.log
+crash.*.log
+
+# =============================================================================
+# SECRETS / CREDENTIALS
+# =============================================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+.aws/
+credentials
+
+# =============================================================================
+# PYTHON
+# =============================================================================
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
 .venv/
+venv/
+env/
+ENV/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
-# Data
+# =============================================================================
+# DATA
+# =============================================================================
 data/
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
 
-# OS
+# =============================================================================
+# LOGS
+# =============================================================================
+*.log
+
+# =============================================================================
+# TOOLING
+# =============================================================================
+.gstack/
+node_modules/
+
+# =============================================================================
+# OS / EDITOR
+# =============================================================================
 .DS_Store
-terraform/environments/*.tfvars
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+.vscode/
+.idea/
+*.swp

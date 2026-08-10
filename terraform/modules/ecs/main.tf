@@ -20,6 +20,26 @@ resource "aws_iam_role_policy_attachment" "execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# The execution role — not the task role — is what pulls secret values when
+# ECS starts the container, so GetSecretValue belongs here.
+resource "aws_iam_role_policy" "execution_secrets" {
+  # Must be a statically-known value: secret_arn is only known after apply,
+  # and count cannot depend on an unknown.
+  count = var.enable_secrets ? 1 : 0
+
+  name = "${var.name_prefix}-secrets-access"
+  role = aws_iam_role.execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = [var.secret_arn]
+    }]
+  })
+}
+
 resource "aws_iam_role" "task" {
   name = "${var.name_prefix}-ecs-task"
   assume_role_policy = jsonencode({
@@ -65,13 +85,26 @@ resource "aws_cloudwatch_log_group" "app" {
 # the environment_variables and secret_variables maps.
 
 locals {
-  # Convert map to ECS environment format: [{name, value}, ...]
+  # Non-sensitive config — safe as plaintext in the task definition.
   env_pairs = [
-    for k, v in merge(var.environment_variables, var.secret_variables) : {
+    for k, v in var.environment_variables : {
       name  = k
       value = v
     }
   ]
+
+  # Sensitive config — ECS resolves each key out of the Secrets Manager JSON
+  # document at container start. Only key NAMES land in the task definition;
+  # nonsensitive() is correct here because a key name is not itself a secret,
+  # and it keeps `terraform plan` output readable.
+  # Gated on the same flag as the IAM policy above, so the task can never
+  # reference secrets it has no permission to read.
+  secret_pairs = var.enable_secrets ? [
+    for k in nonsensitive(keys(var.secret_variables)) : {
+      name      = k
+      valueFrom = "${var.secret_arn}:${k}::"
+    }
+  ] : []
 }
 
 resource "aws_ecs_task_definition" "app" {
@@ -94,6 +127,7 @@ resource "aws_ecs_task_definition" "app" {
     }]
 
     environment = local.env_pairs
+    secrets     = local.secret_pairs
 
     logConfiguration = {
       logDriver = "awslogs"

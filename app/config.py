@@ -1,6 +1,7 @@
 import os
 
 # Feed
+FEED_TYPE = os.getenv("FEED_TYPE", "mock")  # "mock" | "angelone"
 FEED_INTERVAL_MS = int(os.getenv("FEED_INTERVAL_MS", "500"))  # tick every 500ms
 SYMBOLS = os.getenv("SYMBOLS", "NIFTY50,SENSEX,BANKNIFTY,RELIANCE,TCS").split(",")
 

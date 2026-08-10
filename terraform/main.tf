@@ -37,6 +37,24 @@ module "storage" {
 }
 
 # =============================================================================
+# SECRETS (Secrets Manager)
+# =============================================================================
+# Holds DB and Angel One credentials as one JSON document. ECS pulls
+# individual keys at container start, so no plaintext lands in the task
+# definition.
+module "secrets" {
+  source = "./modules/secrets"
+
+  name_prefix          = local.name_prefix
+  db_password          = var.db_credentials.password
+  angelone_client_id   = var.angelone_credentials.client_id
+  angelone_api_key     = var.angelone_credentials.api_key
+  angelone_totp_secret = var.angelone_credentials.totp_secret
+  angelone_pin         = var.angelone_credentials.pin
+  tags                 = local.common_tags
+}
+
+# =============================================================================
 # DATABASE (conditional — skipped if database.enabled = false)
 # =============================================================================
 module "database" {
@@ -96,6 +114,8 @@ module "ecs" {
   # Environment
   environment_variables = local.container_environment
   secret_variables      = local.container_secrets
+  secret_arn            = module.secrets.secret_arn
+  enable_secrets        = true
 
   # Auto-scaling
   min_count = var.container.min_count

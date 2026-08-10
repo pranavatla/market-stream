@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import time
 from contextlib import asynccontextmanager
 from typing import Set
@@ -9,14 +10,25 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 
 from app.models import Tick, AlertConfig, AlertDirection
-from app.market_feed import MockFeed
+from app.market_feed import MockFeed, AngelOneFeed
 from app.storage import TickStore
 from app.alerts import AlertEngine
-from app.config import SYMBOLS, HOST, PORT
+from app.config import SYMBOLS, HOST, PORT, FEED_TYPE
+
+log = logging.getLogger(__name__)
+
+
+def build_feed():
+    """Pick the feed implementation from FEED_TYPE."""
+    if FEED_TYPE.strip().lower() == "angelone":
+        log.info("Using Angel One live feed")
+        return AngelOneFeed()
+    log.info("Using simulated market feed")
+    return MockFeed()
 
 
 # --- Global state ---
-feed = MockFeed()
+feed = build_feed()
 store = TickStore()
 alert_engine = AlertEngine()
 ws_clients: Set[WebSocket] = set()
@@ -64,11 +76,21 @@ async def run_feed():
             })
 
 
+async def run_feed_supervised():
+    """Wrapper so a feed failure surfaces in logs instead of dying silently."""
+    try:
+        await run_feed()
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.exception("Feed loop terminated unexpectedly (FEED_TYPE=%s)", FEED_TYPE)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global feed_task
     await store.init()
-    feed_task = asyncio.create_task(run_feed())
+    feed_task = asyncio.create_task(run_feed_supervised())
     yield
     feed.stop()
     feed_task.cancel()

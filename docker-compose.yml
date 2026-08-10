@@ -5,7 +5,11 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+    env_file: .env
     environment:
+      # Shell env wins, else default to the simulated feed.
+      # FEED_TYPE=angelone docker compose up  → live Angel One feed
+      - FEED_TYPE=${FEED_TYPE:-mock}
       - FEED_INTERVAL_MS=500
       - SYMBOLS=NIFTY50,SENSEX,BANKNIFTY,RELIANCE,TCS
     restart: unless-stopped

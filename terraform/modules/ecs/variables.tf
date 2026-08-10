@@ -24,10 +24,27 @@ variable "environment_variables" {
 }
 
 variable "secret_variables" {
-  description = "Sensitive env vars — passed as environment for now, use Secrets Manager in prod"
+  description = <<-EOT
+    Sensitive env vars. Only the KEYS are used here — each becomes a `secrets`
+    entry resolved from Secrets Manager at task start via
+    `{secret_arn}:{KEY}::`. The values are written to the secret by the
+    secrets module, never into the task definition.
+  EOT
   type        = map(string)
   default     = {}
   sensitive   = true
+}
+
+variable "secret_arn" {
+  description = "ARN of the Secrets Manager secret holding the JSON keys named in secret_variables"
+  type        = string
+  default     = ""
+}
+
+variable "enable_secrets" {
+  description = "Whether to source sensitive env vars from Secrets Manager. Static (not derived from secret_arn) because count must be known at plan time."
+  type        = bool
+  default     = false
 }
 
 variable "scaling" {

@@ -140,6 +140,33 @@ variable "db_credentials" {
 }
 
 # =============================================================================
+# ANGEL ONE (LIVE MARKET FEED)
+# =============================================================================
+
+variable "angelone_credentials" {
+  description = <<-EOT
+    Angel One SmartAPI credentials, written to Secrets Manager and injected
+    into the container as secrets. Only used when FEED_TYPE=angelone.
+    Never commit to version control — the TOTP secret is a 2FA seed and
+    grants account access on its own.
+  EOT
+  type = object({
+    client_id   = string
+    api_key     = string
+    totp_secret = string
+    pin         = string
+  })
+  sensitive = true
+
+  default = {
+    client_id   = ""
+    api_key     = ""
+    totp_secret = ""
+    pin         = ""
+  }
+}
+
+# =============================================================================
 # CONTAINER / ECS
 # =============================================================================
 
