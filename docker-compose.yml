@@ -1,0 +1,11 @@
+services:
+  market-stream:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - FEED_INTERVAL_MS=500
+      - SYMBOLS=NIFTY50,SENSEX,BANKNIFTY,RELIANCE,TCS
+    restart: unless-stopped
