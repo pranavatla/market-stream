@@ -1,5 +1,0 @@
-COMPANY: CloudStream Solutions
-SERVICES: We provide high-speed cloud hosting and automated workflow tools for IT teams.
-PRICING: Our Basic plan starts at $29/month, and the Pro plan is $99/month.
-SUPPORT: Support is available 24/7 via the chat bubble.
-LOCATION: Our headquarters is located in Indiranagar, Bengaluru.
