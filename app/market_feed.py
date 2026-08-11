@@ -138,6 +138,9 @@ class AngelOneFeed:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._queue: Optional[asyncio.Queue] = None
         self._dropped = 0
+        self._auth_lock = threading.Lock()
+        self._auth_cache: Optional[dict] = None
+        self._auth_cache_at = 0.0
 
         # Per-symbol OHLC carry-forward, for when a tick omits fields.
         self._state: Dict[str, dict] = {}
@@ -212,35 +215,41 @@ class AngelOneFeed:
         from SmartApi import SmartConnect
         import pyotp
 
-        missing = [
-            name
-            for name, val in (
-                ("ANGELONE_CLIENT_ID", self.client_id),
-                ("ANGELONE_API_KEY", self.api_key),
-                ("ANGELONE_TOTP_SECRET", self.totp_secret),
-                ("ANGELONE_PIN", self.pin),
-            )
-            if not val
-        ]
-        if missing:
-            raise RuntimeError(
-                "Angel One feed is missing required env vars: " + ", ".join(missing)
-            )
+        with self._auth_lock:
+            if self._auth_cache and time.time() - self._auth_cache_at < 240:
+                return self._auth_cache
 
-        totp = pyotp.TOTP(self.totp_secret).now()
-        client = SmartConnect(api_key=self.api_key)
-        session = client.generateSession(self.client_id, self.pin, totp)
+            missing = [
+                name
+                for name, val in (
+                    ("ANGELONE_CLIENT_ID", self.client_id),
+                    ("ANGELONE_API_KEY", self.api_key),
+                    ("ANGELONE_TOTP_SECRET", self.totp_secret),
+                    ("ANGELONE_PIN", self.pin),
+                )
+                if not val
+            ]
+            if missing:
+                raise RuntimeError(
+                    "Angel One feed is missing required env vars: " + ", ".join(missing)
+                )
 
-        if not session or not session.get("status"):
-            raise RuntimeError(
-                f"Angel One login failed: {session.get('message') if session else 'no response'}"
-            )
+            totp = pyotp.TOTP(self.totp_secret).now()
+            client = SmartConnect(api_key=self.api_key)
+            session = client.generateSession(self.client_id, self.pin, totp)
 
-        return {
-            "auth_token": session["data"]["jwtToken"],
-            "feed_token": client.getfeedToken(),
-            "client": client,
-        }
+            if not session or not session.get("status"):
+                raise RuntimeError(
+                    f"Angel One login failed: {session.get('message') if session else 'no response'}"
+                )
+
+            self._auth_cache = {
+                "auth_token": session["data"]["jwtToken"],
+                "feed_token": client.getfeedToken(),
+                "client": client,
+            }
+            self._auth_cache_at = time.time()
+            return self._auth_cache
 
     # -------------------------------------------------------------------------
     # TICK DECODING
