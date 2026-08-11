@@ -324,6 +324,58 @@ const latestPrices = {};  // symbol -> {price, open, high, low, volume}
 let tickCounter = 0;
 let tpsInterval = null;
 
+// --- IST time handling ---
+// Lightweight Charts has no timezone support: it renders every timestamp as
+// UTC. To show IST we shift each timestamp by +5:30 on the way in, then read
+// it back with UTC getters — the two cancel out to IST wall-clock time.
+//
+// This means the formatters below MUST use getUTC* and must NOT convert to a
+// timezone again; doing both would shift by 11 hours.
+const IST_OFFSET_SECONDS = 5 * 3600 + 30 * 60; // 19800
+
+// Chart-space timestamp (IST-shifted) from a real UNIX timestamp.
+function toIST(unixSeconds) {
+  return Math.floor(unixSeconds) + IST_OFFSET_SECONDS;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function pad2(n) {
+  return n < 10 ? '0' + n : String(n);
+}
+
+// `ts` is already IST-shifted — read as UTC to get IST wall-clock.
+function istClock(ts, withSeconds) {
+  const d = new Date(ts * 1000);
+  const hm = pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes());
+  return withSeconds ? hm + ':' + pad2(d.getUTCSeconds()) : hm;
+}
+
+function istDay(ts) {
+  const d = new Date(ts * 1000);
+  return pad2(d.getUTCDate()) + ' ' + MONTHS[d.getUTCMonth()];
+}
+
+// Crosshair / tooltip label.
+function istFullLabel(ts) {
+  return istDay(ts) + ' ' + istClock(ts, true) + ' IST';
+}
+
+// Time-axis tick labels.
+function istTickLabel(ts, tickMarkType) {
+  const TMT = (window.LightweightCharts && LightweightCharts.TickMarkType) ||
+              { Year: 0, Month: 1, DayOfMonth: 2, Time: 3, TimeWithSeconds: 4 };
+  const d = new Date(ts * 1000);
+  switch (tickMarkType) {
+    case TMT.Year:            return String(d.getUTCFullYear());
+    case TMT.Month:           return MONTHS[d.getUTCMonth()];
+    case TMT.DayOfMonth:      return istDay(ts);
+    case TMT.TimeWithSeconds: return istClock(ts, true);
+    default:                  return istClock(ts, false);
+  }
+}
+
 // --- Chart Setup ---
 function initChart() {
   const container = document.getElementById('chart');
@@ -343,10 +395,15 @@ function initChart() {
       vertLine: { color: '#3b82f680', width: 1, style: 2 },
       horzLine: { color: '#3b82f680', width: 1, style: 2 },
     },
+    localization: {
+      // Receives the IST-shifted timestamp — format it as UTC, not IST again.
+      timeFormatter: istFullLabel,
+    },
     timeScale: {
       timeVisible: true,
       secondsVisible: true,
       borderColor: '#1e2a3a',
+      tickMarkFormatter: istTickLabel,
     },
     rightPriceScale: {
       borderColor: '#1e2a3a',
@@ -417,7 +474,7 @@ function handleTick(tick) {
 
   // If this is the active symbol, update chart + stats
   if (tick.symbol === activeSymbol) {
-    const ts = Math.floor(tick.timestamp);
+    const ts = toIST(tick.timestamp);
     lineSeries.update({ time: ts, value: tick.price });
     volumeSeries.update({ time: ts, value: tick.volume, color: tick.price >= tick.open ? '#22c55e30' : '#ef444430' });
     updateStats(tick);
@@ -478,7 +535,7 @@ function switchSymbol(sym) {
         const volData = [];
         const seen = new Set();
         data.ticks.forEach(t => {
-          const ts = Math.floor(t.timestamp);
+          const ts = toIST(t.timestamp);
           if (!seen.has(ts)) {
             seen.add(ts);
             lineData.push({ time: ts, value: t.price });

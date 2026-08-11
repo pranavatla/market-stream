@@ -223,6 +223,33 @@ variable "autoscaling_thresholds" {
 }
 
 # =============================================================================
+# CI/CD (GITHUB ACTIONS)
+# =============================================================================
+
+variable "github_repo" {
+  description = "GitHub repository (owner/name) allowed to assume the deploy role via OIDC"
+  type        = string
+  default     = "pranavatla/market-stream"
+
+  validation {
+    condition     = can(regex("^[^/]+/[^/]+$", var.github_repo))
+    error_message = "github_repo must be in 'owner/name' form."
+  }
+}
+
+variable "github_branch" {
+  description = "Branch whose GitHub Actions workflows may assume the deploy role"
+  type        = string
+  default     = "dev"
+}
+
+variable "create_github_oidc_provider" {
+  description = "Create the GitHub OIDC provider. Set false if the account already has one (only one per URL per account)."
+  type        = bool
+  default     = true
+}
+
+# =============================================================================
 # TAGS
 # =============================================================================
 

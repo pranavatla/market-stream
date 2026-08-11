@@ -126,6 +126,29 @@ module "ecs" {
 }
 
 # =============================================================================
+# CI/CD (GitHub Actions OIDC + deploy role)
+# =============================================================================
+# Grants the deploy workflow permission to push to ECR and force-deploy the
+# ECS service, scoped to this repo + branch. No long-lived AWS keys.
+module "cicd" {
+  source = "./modules/cicd"
+
+  name_prefix   = local.name_prefix
+  account_id    = data.aws_caller_identity.current.account_id
+  region        = var.region
+  github_repo   = var.github_repo
+  github_branch = var.github_branch
+
+  ecr_repo_arn     = module.storage.ecr_repo_arn
+  ecs_cluster_name = module.ecs.cluster_name
+  ecs_service_name = module.ecs.service_name
+
+  create_oidc_provider = var.create_github_oidc_provider
+
+  tags = local.common_tags
+}
+
+# =============================================================================
 # DNS
 # =============================================================================
 module "dns" {

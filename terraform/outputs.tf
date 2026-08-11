@@ -32,6 +32,11 @@ output "vpc_id" {
   value       = module.networking.vpc_id
 }
 
+output "github_actions_role_arn" {
+  description = "IAM role ARN for GitHub Actions OIDC — set as role-to-assume in .github/workflows/deploy.yml"
+  value       = module.cicd.role_arn
+}
+
 # =============================================================================
 # OPERATIONAL COMMANDS
 # =============================================================================
