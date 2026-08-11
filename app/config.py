@@ -3,12 +3,11 @@ import os
 # Feed
 FEED_TYPE = os.getenv("FEED_TYPE", "mock")  # "mock" | "angelone"
 FEED_INTERVAL_MS = int(os.getenv("FEED_INTERVAL_MS", "500"))  # tick every 500ms
-SYMBOLS = os.getenv("SYMBOLS", "NIFTY50,SENSEX,BANKNIFTY,RELIANCE,TCS").split(",")
+SYMBOLS = os.getenv("SYMBOLS", "NIFTY50,BANKNIFTY").split(",")
 
 # Mock seed prices (realistic INR values)
 SEED_PRICES = {
     "NIFTY50": 24850.0,
-    "SENSEX": 81200.0,
     "BANKNIFTY": 52400.0,
     "RELIANCE": 2950.0,
     "TCS": 3720.0,

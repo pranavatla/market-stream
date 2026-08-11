@@ -93,7 +93,6 @@ class MockFeed:
 # Tokens are Angel One's SmartAPI instrument tokens.
 ANGELONE_INSTRUMENTS = {
     "NIFTY50": {"exchange_type": 1, "token": "99926000"},
-    "SENSEX": {"exchange_type": 1, "token": "99919000"},
     "BANKNIFTY": {"exchange_type": 1, "token": "99926009"},
 }
 

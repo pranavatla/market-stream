@@ -202,7 +202,7 @@ variable "app_environment" {
   type        = map(string)
   default = {
     FEED_INTERVAL_MS = "500"
-    SYMBOLS          = "NIFTY50,SENSEX,BANKNIFTY,RELIANCE,TCS"
+    SYMBOLS          = "NIFTY50,BANKNIFTY"
   }
 }
 

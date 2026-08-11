@@ -376,8 +376,8 @@
   <div class="brand">
     <div class="brand-mark">MS</div>
     <div>
-      <h1>NIFTY 50<span>·</span>STREAM</h1>
-      <div class="subtitle">For NIFTY 50 index only · Angel One feed · Dev environment</div>
+      <h1>NSE INDEX<span>·</span>STREAM</h1>
+      <div class="subtitle">NIFTY + BANKNIFTY only · Angel One feed · Dev environment</div>
     </div>
   </div>
   <div class="header-actions">
@@ -397,7 +397,7 @@
   <div class="chart-panel">
     <div class="chart-header">
       <div>
-        <div class="chart-title">Live NIFTY 50 Index Chart</div>
+        <div class="chart-title">Live NSE Index Chart</div>
         <div class="chart-symbol" id="chartSymbol">--</div>
       </div>
       <div class="chart-meta">
@@ -465,6 +465,7 @@ let volumeSeries = null;
 const latestPrices = {};  // symbol -> {price, open, high, low, volume}
 let tickCounter = 0;
 let tpsInterval = null;
+const DISPLAY_SYMBOLS = new Set(['NIFTY50', 'BANKNIFTY']);
 
 // --- IST time handling ---
 // Lightweight Charts has no timezone support: it renders every timestamp as
@@ -599,6 +600,8 @@ function connect() {
 
 // --- Tick Handler ---
 function handleTick(tick) {
+  if (!DISPLAY_SYMBOLS.has(tick.symbol)) return;
+
   // Update latest prices
   latestPrices[tick.symbol] = tick;
   tickCounter++;
@@ -769,7 +772,7 @@ async function init() {
 
   const resp = await fetch('/api/symbols');
   const data = await resp.json();
-  symbols = data.symbols;
+  symbols = (data.symbols || []).filter(sym => DISPLAY_SYMBOLS.has(sym));
 
   buildTabs(symbols);
   activeSymbol = symbols[0];
