@@ -606,16 +606,7 @@ function handleTick(tick) {
   latestPrices[tick.symbol] = tick;
   tickCounter++;
 
-  // Update tab price
-  const tab = document.querySelector(`.symbol-tab[data-sym="${tick.symbol}"]`);
-  if (tab) {
-    const priceEl = tab.querySelector('.tab-price');
-    const change = tick.price - tick.open;
-    const cls = change >= 0 ? 'up' : 'down';
-    const sign = change >= 0 ? '+' : '';
-    priceEl.className = `tab-price ${cls}`;
-    priceEl.textContent = `${tick.price.toFixed(2)} ${sign}${change.toFixed(2)}`;
-  }
+  updateTabPrice(tick);
 
   // If this is the active symbol, update chart + stats
   if (tick.symbol === activeSymbol) {
@@ -624,6 +615,34 @@ function handleTick(tick) {
     volumeSeries.update({ time: ts, value: tick.volume, color: tick.price >= tick.open ? '#07966926' : '#dc262626' });
     updateStats(tick);
   }
+}
+
+function updateTabPrice(tick) {
+  const tab = document.querySelector(`.symbol-tab[data-sym="${tick.symbol}"]`);
+  if (!tab) return;
+
+  const priceEl = tab.querySelector('.tab-price');
+  const change = tick.price - tick.open;
+  const cls = change >= 0 ? 'up' : 'down';
+  const sign = change >= 0 ? '+' : '';
+  priceEl.className = `tab-price ${cls}`;
+  priceEl.textContent = `${tick.price.toFixed(2)} ${sign}${change.toFixed(2)}`;
+}
+
+function buildSessionSnapshot(symbol, ticks) {
+  if (!ticks.length) return null;
+
+  const first = ticks[0];
+  const last = ticks[ticks.length - 1];
+  return {
+    symbol,
+    price: last.price,
+    open: first.open,
+    high: Math.max(...ticks.map(t => t.high)),
+    low: Math.min(...ticks.map(t => t.low)),
+    volume: ticks.reduce((sum, t) => sum + (Number(t.volume) || 0), 0),
+    timestamp: last.timestamp,
+  };
 }
 
 function updateStats(tick) {
@@ -667,6 +686,7 @@ function switchSymbol(sym) {
   activeSymbol = sym;
   document.getElementById('chartSymbol').textContent = sym;
   document.querySelectorAll('.symbol-tab').forEach(t => t.classList.toggle('active', t.dataset.sym === sym));
+  if (latestPrices[sym]) updateStats(latestPrices[sym]);
 
   // Clear chart and reload
   lineSeries.setData([]);
@@ -677,10 +697,11 @@ function switchSymbol(sym) {
     .then(r => r.json())
     .then(data => {
       if (data.ticks) {
+        const ticks = data.ticks;
         const lineData = [];
         const volData = [];
         const seen = new Set();
-        data.ticks.forEach(t => {
+        ticks.forEach(t => {
           const ts = toIST(t.timestamp);
           if (!seen.has(ts)) {
             seen.add(ts);
@@ -690,6 +711,12 @@ function switchSymbol(sym) {
         });
         lineSeries.setData(lineData);
         volumeSeries.setData(volData);
+        const snapshot = buildSessionSnapshot(sym, ticks);
+        if (snapshot) {
+          latestPrices[sym] = snapshot;
+          updateTabPrice(snapshot);
+          if (sym === activeSymbol) updateStats(snapshot);
+        }
       }
     })
     .catch(() => {});
