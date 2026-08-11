@@ -673,7 +673,7 @@ function switchSymbol(sym) {
   volumeSeries.setData([]);
 
   // Fetch history
-  fetch(`/api/history/${sym}?minutes=60`)
+  fetch(`/api/history/${sym}?minutes=1440`)
     .then(r => r.json())
     .then(data => {
       if (data.ticks) {

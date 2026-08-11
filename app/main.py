@@ -132,6 +132,13 @@ async def get_summary(symbol: str):
 async def get_history(symbol: str, minutes: int = Query(default=60, le=1440)):
     since = time.time() - (minutes * 60)
     ticks = await store.get_history(symbol.upper(), since=since, limit=2000)
+    if not ticks and isinstance(feed, AngelOneFeed):
+        try:
+            ticks = await asyncio.to_thread(feed.get_intraday_history, symbol.upper())
+            if ticks:
+                await store.insert_batch(ticks)
+        except Exception:
+            log.exception("Historical candle bootstrap failed for %s", symbol.upper())
     return {"symbol": symbol.upper(), "count": len(ticks), "ticks": [t.model_dump() for t in ticks]}
 
 

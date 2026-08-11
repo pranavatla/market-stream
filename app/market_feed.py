@@ -1,4 +1,6 @@
 import asyncio
+from datetime import datetime, time as datetime_time
+from zoneinfo import ZoneInfo
 import logging
 import os
 import random
@@ -147,6 +149,60 @@ class AngelOneFeed:
         # SmartConnect.generateSession() requires the account PIN/password in
         # addition to the TOTP. Accept either name.
         self.pin = os.getenv("ANGELONE_PIN") or os.getenv("ANGELONE_PASSWORD")
+
+    def get_intraday_history(self, symbol: str) -> list[Tick]:
+        """Fetch current-session one-minute candles from Angel One REST."""
+        symbol = symbol.upper()
+        instrument = ANGELONE_INSTRUMENTS.get(symbol)
+        if not instrument:
+            return []
+
+        creds = self._authenticate()
+        client = creds["client"]
+        ist = ZoneInfo("Asia/Kolkata")
+        now = datetime.now(ist)
+        session_start = datetime.combine(now.date(), datetime_time(9, 15), tzinfo=ist)
+        session_end = min(now, datetime.combine(now.date(), datetime_time(15, 30), tzinfo=ist))
+
+        if session_end <= session_start:
+            return []
+
+        payload = {
+            "exchange": "NSE",
+            "symboltoken": instrument["token"],
+            "interval": "ONE_MINUTE",
+            "fromdate": session_start.strftime("%Y-%m-%d %H:%M"),
+            "todate": session_end.strftime("%Y-%m-%d %H:%M"),
+        }
+        response = client.getCandleData(payload)
+        if not response or not response.get("status"):
+            log.warning("Angel One candle fetch failed for %s: %s", symbol, response)
+            return []
+
+        ticks: list[Tick] = []
+        for candle in response.get("data") or []:
+            if len(candle) < 6:
+                continue
+            timestamp, open_price, high, low, close, volume = candle[:6]
+            try:
+                dt = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=ist)
+                ticks.append(
+                    Tick(
+                        symbol=symbol,
+                        price=float(close),
+                        open=float(open_price),
+                        high=float(high),
+                        low=float(low),
+                        volume=int(volume or 0),
+                        timestamp=dt.timestamp(),
+                    )
+                )
+            except (TypeError, ValueError):
+                log.debug("Skipping malformed candle for %s: %s", symbol, candle)
+
+        return ticks
 
     # -------------------------------------------------------------------------
     # AUTH
