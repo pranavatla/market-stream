@@ -29,8 +29,7 @@ data "aws_iam_openid_connect_provider" "github" {
 locals {
   oidc_provider_arn = var.create_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : data.aws_iam_openid_connect_provider.github[0].arn
 
-  # sub claim GitHub sends: repo:<owner>/<repo>:ref:refs/heads/<branch>
-  github_sub = "repo:${var.github_repo}:ref:refs/heads/${var.github_branch}"
+  # GitHub OIDC sub is repo-scoped in the trust policy so manual and push deploys both work.
 
   # New-format ECS service ARN, for resource-scoped ecs:* permissions.
   ecs_service_arn = "arn:aws:ecs:${var.region}:${var.account_id}:service/${var.ecs_cluster_name}/${var.ecs_service_name}"
@@ -52,7 +51,9 @@ resource "aws_iam_role" "github_actions" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          "token.actions.githubusercontent.com:sub" = local.github_sub
+        }
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:*"
         }
       }
     }]
