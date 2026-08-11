@@ -5,6 +5,7 @@
 resource "aws_ecr_repository" "app" {
   name                 = "${var.name_prefix}/api"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration { scan_on_push = true }
 
@@ -32,8 +33,9 @@ resource "aws_ecr_lifecycle_policy" "app" {
 # =============================================================================
 
 resource "aws_s3_bucket" "frontend" {
-  bucket = "${var.name_prefix}-frontend-${var.account_id}"
-  tags   = merge(var.tags, { Name = "${var.name_prefix}-frontend" })
+  bucket        = "${var.name_prefix}-frontend-${var.account_id}"
+  force_destroy = true
+  tags          = merge(var.tags, { Name = "${var.name_prefix}-frontend" })
 }
 
 resource "aws_s3_bucket_public_access_block" "frontend" {
