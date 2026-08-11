@@ -3,6 +3,7 @@ name: Deploy dev to ECS
 # Build the image and roll the ECS service whenever app code changes on the
 # dev branch. Terraform-only changes do not trigger a deploy.
 on:
+  workflow_dispatch:
   push:
     branches:
       - dev
@@ -11,6 +12,7 @@ on:
       - 'frontend/**'
       - 'Dockerfile'
       - 'requirements.txt'
+      - '.github/workflows/deploy.yml'
 
 # OIDC needs id-token: write. contents: read is for actions/checkout.
 permissions:
